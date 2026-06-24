@@ -5,6 +5,12 @@ Recriação da plataforma **pront.app**: SaaS multi-tenant de saúde digital
 Cada clínica é um *tenant* isolado — modelo pensado para revenda da plataforma
 para várias clínicas e profissionais.
 
+🌐 **No ar:** https://pront-saude-digital.netlify.app
+🔐 **Conta demo:** `teste-clinica@pront.app` / `Senha12345`
+
+> Backend real ativo: autenticação e dados persistidos no **Supabase** (PostgreSQL),
+> isolados por clínica via Row Level Security.
+
 ## Stack
 
 - **Next.js 14** (App Router) + **TypeScript**
@@ -37,23 +43,29 @@ npm run dev
 
 Faça login com qualquer e-mail/senha (modo demonstração).
 
-## Modo demonstração vs. produção
+## Backend (produção)
 
-A **v1 roda em modo demonstração**: autenticação e dados ficam no
-`localStorage` do navegador, para você navegar e validar todo o produto sem
-depender de servidor. **Nenhum dado de cliente real do pront.app original é
-acessível** — esses dados estão no banco de dados do sistema antigo.
+O sistema está **conectado a um backend real** no Supabase:
 
-### Indo para produção (dados reais multi-tenant)
+- **Auth** real (login, cadastro, logout) via Supabase Auth
+- No cadastro, um gatilho cria automaticamente a **clínica (tenant)** + o **perfil**
+- **Persistência** de pacientes, agenda e prontuários no PostgreSQL
+- **Isolamento por clínica** via Row Level Security (cada conta só vê os próprios dados)
 
-1. Crie um projeto no [Supabase](https://supabase.com).
-2. Rode a migration `supabase/migrations/0001_init.sql` (cria tenants,
-   profiles, pacientes, agendamentos, prontuários + RLS por tenant).
-3. Copie `.env.example` para `.env.local` e preencha
-   `NEXT_PUBLIC_SUPABASE_URL` e `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-4. Troque a camada de dados em `src/lib/store.tsx` e a sessão em
-   `src/app/login` / `src/app/cadastro` por **Supabase Auth** e consultas às
-   tabelas (a estrutura de funções/CRUD já está isolada para facilitar essa troca).
+Variáveis necessárias (já configuradas na Netlify; para rodar local copie
+`.env.example` para `.env.local`):
+
+```
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+```
+
+> **Observação de segurança:** para agilizar a revenda, novos cadastros são
+> auto-confirmados (login imediato). Endurecimento recomendado para produção
+> madura: exigir verificação real de e-mail e aprovação da clínica.
+>
+> **Dados dos clientes antigos:** nenhum dado do pront.app original é acessível —
+> ele vive no banco do sistema antigo. Esta plataforma começa limpa.
 
 ## Roadmap (próximas etapas)
 
