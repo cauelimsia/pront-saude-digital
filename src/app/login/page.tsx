@@ -5,25 +5,31 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Mail, Lock, Loader2 } from "lucide-react";
 import { AuthShell } from "@/components/auth/AuthShell";
-import { setSession } from "@/lib/store";
+import { createClient } from "@/lib/supabase";
 
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState("");
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    // Modo demonstração: autentica localmente. Trocar por Supabase Auth.
-    setSession({
-      nome: "Dra. Equipe Pront",
-      email: email || "demo@pront.app",
-      clinica: "Clínica Demonstração",
-      perfil: "clinica",
+    setErro("");
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password: senha,
     });
-    setTimeout(() => router.push("/dashboard"), 400);
+    if (error) {
+      setErro("E-mail ou senha incorretos.");
+      setLoading(false);
+      return;
+    }
+    router.push("/dashboard");
+    router.refresh();
   }
 
   return (
@@ -32,6 +38,12 @@ export default function LoginPage() {
       <p className="mt-1 text-sm text-ink-500">
         Acesse o painel da sua clínica.
       </p>
+
+      {erro && (
+        <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+          {erro}
+        </p>
+      )}
 
       <form onSubmit={handleSubmit} className="mt-8 space-y-4">
         <Field

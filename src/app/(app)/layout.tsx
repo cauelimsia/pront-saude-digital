@@ -4,26 +4,21 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Menu, X, Bell } from "lucide-react";
 import { Sidebar } from "@/components/app/Sidebar";
-import { StoreProvider, getSession } from "@/lib/store";
-import type { Session } from "@/lib/types";
+import { StoreProvider } from "@/lib/store";
+import { useProfile } from "@/lib/useProfile";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const [session, setSessionState] = useState<Session | null>(null);
-  const [checked, setChecked] = useState(false);
+  const { profile: session, loading } = useProfile();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
-    const s = getSession();
-    if (!s) {
+    if (!loading && !session) {
       router.replace("/login");
-      return;
     }
-    setSessionState(s);
-    setChecked(true);
-  }, [router]);
+  }, [loading, session, router]);
 
-  if (!checked || !session) {
+  if (loading || !session) {
     return (
       <div className="flex min-h-screen items-center justify-center text-ink-400">
         Carregando…
