@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Mail, Lock, User, Building2, Loader2 } from "lucide-react";
 import { AuthShell } from "@/components/auth/AuthShell";
-import { setSession } from "@/lib/store";
+import { createClient } from "@/lib/supabase";
 import type { Perfil } from "@/lib/types";
 
 const perfis: { value: Perfil; label: string }[] = [
@@ -28,24 +28,45 @@ function CadastroForm() {
   const [senha, setSenha] = useState("");
   const [perfil, setPerfil] = useState<Perfil>(perfilInicial);
   const [loading, setLoading] = useState(false);
+  const [erro, setErro] = useState("");
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
-    // Modo demonstração: cria sessão local. Trocar por Supabase Auth + tenant.
-    setSession({
-      nome: nome || "Novo usuário",
-      email: email || "novo@pront.app",
-      clinica: clinica || "Minha Clínica",
-      perfil,
+    setErro("");
+    const supabase = createClient();
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password: senha,
+      options: { data: { nome, clinica, perfil } },
     });
-    setTimeout(() => router.push("/dashboard"), 500);
+    if (error) {
+      setErro(
+        error.message.includes("already")
+          ? "Este e-mail já está cadastrado. Faça login."
+          : "Não foi possível criar a conta. Verifique os dados (senha mín. 6 caracteres)."
+      );
+      setLoading(false);
+      return;
+    }
+    // Auto-confirmado no banco: já há sessão. Se não houver, faz login.
+    if (!data.session) {
+      await supabase.auth.signInWithPassword({ email, password: senha });
+    }
+    router.push("/dashboard");
+    router.refresh();
   }
 
   return (
     <AuthShell>
       <h1 className="text-2xl font-bold text-ink-900">Criar conta grátis</h1>
       <p className="mt-1 text-sm text-ink-500">7 dias grátis. Sem cartão de crédito.</p>
+
+      {erro && (
+        <p className="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">
+          {erro}
+        </p>
+      )}
 
       <form onSubmit={handleSubmit} className="mt-7 space-y-4">
         <div>

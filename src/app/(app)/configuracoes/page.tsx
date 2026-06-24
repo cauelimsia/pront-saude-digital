@@ -1,14 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Building2, Database, ShieldCheck } from "lucide-react";
-import { getSession } from "@/lib/store";
+import { useProfile } from "@/lib/useProfile";
 import { PageHeader, Input } from "@/components/app/ui";
-import type { Session } from "@/lib/types";
 
 export default function ConfiguracoesPage() {
-  const [session, setSession] = useState<Session | null>(null);
-  useEffect(() => setSession(getSession()), []);
+  const { profile: session } = useProfile();
 
   return (
     <div className="max-w-2xl">
@@ -37,14 +34,10 @@ export default function ConfiguracoesPage() {
             <h2 className="font-bold text-ink-900">Banco de dados</h2>
           </div>
           <p className="text-sm text-ink-600">
-            Esta versão está em <strong>modo demonstração</strong>: os dados ficam
-            salvos apenas neste navegador. Para colocar em produção com dados reais e
-            isolados por clínica (multi-tenant), conecte o Supabase preenchendo as
-            variáveis de ambiente — o schema já está pronto em{" "}
-            <code className="rounded bg-ink-100 px-1 py-0.5 text-xs">
-              supabase/migrations
-            </code>
-            .
+            Os dados são armazenados com segurança no <strong>Supabase</strong>{" "}
+            (PostgreSQL) e ficam <strong>isolados por clínica</strong> via Row Level
+            Security — cada conta só enxerga os próprios pacientes, agenda e
+            prontuários (multi-tenant).
           </p>
         </section>
 

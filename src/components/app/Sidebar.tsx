@@ -12,7 +12,7 @@ import {
   Stethoscope,
 } from "lucide-react";
 import { Logo } from "@/components/Logo";
-import { clearSession } from "@/lib/store";
+import { createClient } from "@/lib/supabase";
 
 const nav = [
   { label: "Visão geral", href: "/dashboard", icon: LayoutDashboard },
@@ -27,9 +27,11 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
 
-  function sair() {
-    clearSession();
+  async function sair() {
+    const supabase = createClient();
+    await supabase.auth.signOut();
     router.push("/login");
+    router.refresh();
   }
 
   return (
