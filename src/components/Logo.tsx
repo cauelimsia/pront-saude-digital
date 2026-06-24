@@ -19,7 +19,7 @@ export function Logo({
         </svg>
       </span>
       <span className={`text-xl font-extrabold tracking-tight ${textColor}`}>
-        Pront<span className="text-brand-500">.</span>
+        Pront<span className="text-accent-500">.</span>
       </span>
     </Link>
   );

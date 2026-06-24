@@ -24,9 +24,18 @@ export function Segments() {
               href={s.href}
               className="card group flex flex-col gap-4 p-6 transition-all hover:-translate-y-1 hover:shadow-soft hover:ring-brand-200"
             >
-              <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-brand-600 transition-colors group-hover:bg-brand-600 group-hover:text-white">
-                <Icon className="h-6 w-6" />
-              </span>
+              <div className="flex items-start justify-between">
+                <span
+                  className={`flex h-12 w-12 items-center justify-center rounded-xl transition-colors ${s.chip}`}
+                >
+                  <Icon className="h-6 w-6" />
+                </span>
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${s.badge}`}
+                >
+                  {s.highlight}
+                </span>
+              </div>
               <div>
                 <h3 className="text-lg font-bold text-ink-900">{s.label}</h3>
                 <p className="mt-1 text-sm text-ink-600">{s.tagline}</p>

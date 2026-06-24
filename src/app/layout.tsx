@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
-const sans = localFont({
-  src: "./fonts/GeistVF.woff",
+const sans = Inter({
+  subsets: ["latin"],
   variable: "--font-sans",
-  weight: "100 900",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
