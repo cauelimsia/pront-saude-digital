@@ -9,42 +9,54 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // Paleta "Pront." — saúde digital, confiança e cuidado
+        // Paleta literal do pront.app
+        // primária = azul hsl(212 100% 40%) #005FCC
         brand: {
-          50: "#ecfdf7",
-          100: "#d1faec",
-          200: "#a7f3d9",
-          300: "#6ee7bf",
-          400: "#34d3a2",
-          500: "#10b886", // primária
-          600: "#059669",
-          700: "#047857",
-          800: "#065f46",
-          900: "#064e3b",
+          50: "#eef5ff",
+          100: "#d9e8ff",
+          200: "#b6d2ff",
+          300: "#84b5ff",
+          400: "#4a90ff",
+          500: "#1a6fff",
+          600: "#005fcc", // --primary / --pront-navy
+          700: "#004ea8",
+          800: "#003f8a",
+          900: "#00316b", // --pront-navy-dark
         },
+        // acento = verde-menta hsl(166 100% 42%) #00D6A4
+        accent: {
+          50: "#e6fff8",
+          100: "#ccfff1", // --pront-mint-light
+          200: "#99ffe4",
+          300: "#4dffd0",
+          400: "#0eecb4",
+          500: "#00d6a4", // --pront-mint / --accent / --success
+          600: "#00b88c",
+          700: "#009673",
+        },
+        // navy/cinza de texto (--foreground 215 25% 20%, etc.)
         ink: {
-          50: "#f6f7f9",
-          100: "#eceef2",
-          200: "#d5dae3",
+          50: "#f8fafc",
+          100: "#e6ebf0", // --border 216 24% 92%
+          200: "#d5dbe3",
           300: "#b0bac9",
           400: "#8595aa",
-          500: "#647590",
-          600: "#4f5d77",
+          500: "#6c7c93", // --muted-foreground 215 15% 50%
+          600: "#52617a",
           700: "#414c61",
-          800: "#384152",
-          900: "#0f1729", // navy escuro p/ textos e footer
+          800: "#333d4d",
+          900: "#26303d", // --foreground 215 25% 20%
         },
-        accent: {
-          500: "#2563eb", // azul confiança
-          600: "#1d4ed8",
-        },
+        warning: "#f59e0b", // --pront-warning 38 92% 50%
+        whatsapp: "#25d366",
       },
       fontFamily: {
-        sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+        sans: ["var(--font-sans)", "Inter", "system-ui", "sans-serif"],
       },
       boxShadow: {
-        soft: "0 4px 24px -8px rgba(15, 23, 41, 0.12)",
-        card: "0 1px 3px rgba(15,23,41,0.06), 0 8px 32px -12px rgba(15,23,41,0.12)",
+        // sombras literais do site (rgba(0,0,0,.08) / .15)
+        soft: "0 4px 24px -6px rgba(0, 0, 0, 0.12)",
+        card: "0 1px 3px rgba(0,0,0,0.08), 0 8px 28px -12px rgba(0,0,0,0.15)",
       },
       borderRadius: {
         xl: "0.875rem",

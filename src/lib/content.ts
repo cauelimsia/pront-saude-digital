@@ -18,53 +18,74 @@ export type Segment = {
   id: string;
   label: string;
   tagline: string;
+  highlight: string;
   icon: LucideIcon;
   href: string;
+  chip: string; // classes do ícone (fundo + texto)
+  badge: string; // classes do selo de destaque
 };
 
-// Segmentos do ecossistema (espelha a home do pront.app)
+// Segmentos do ecossistema — texto, selo e cor fiéis à home do pront.app
 export const segments: Segment[] = [
   {
     id: "paciente",
     label: "Sou Paciente",
     tagline: "Médicos e dentistas online, 24h",
+    highlight: "WhatsApp + IA 24h",
     icon: User,
     href: "/cadastro?perfil=paciente",
+    chip: "bg-brand-50 text-brand-600 group-hover:bg-brand-600 group-hover:text-white",
+    badge: "bg-brand-50 text-brand-700",
   },
   {
     id: "medico",
     label: "Sou Médico",
-    tagline: "Atenda de qualquer lugar. 7 dias grátis",
+    tagline: "Atenda de qualquer lugar.",
+    highlight: "7 dias grátis",
     icon: Stethoscope,
     href: "/cadastro?perfil=medico",
+    chip: "bg-brand-50 text-brand-600 group-hover:bg-brand-600 group-hover:text-white",
+    badge: "bg-brand-50 text-brand-700",
   },
   {
     id: "dentista",
     label: "Sou Dentista",
-    tagline: "Teleodontologia com IA e triagem",
+    tagline: "Teleodontologia com IA e teletriagem",
+    highlight: "CFO regulamentado",
     icon: Smile,
     href: "/cadastro?perfil=dentista",
+    chip: "bg-cyan-50 text-cyan-600 group-hover:bg-cyan-600 group-hover:text-white",
+    badge: "bg-cyan-50 text-cyan-700",
   },
   {
     id: "farmacia",
     label: "Sou Farmácia",
     tagline: "Receba receitas digitais automaticamente",
+    highlight: "Sem taxa de adesão",
     icon: Pill,
     href: "/cadastro?perfil=farmacia",
+    chip: "bg-accent-50 text-accent-600 group-hover:bg-accent-500 group-hover:text-white",
+    badge: "bg-accent-50 text-accent-700",
   },
   {
     id: "clinica",
     label: "Tenho Clínica",
     tagline: "Gestão completa + telemedicina integrada",
+    highlight: "Portal + WhatsApp",
     icon: Building2,
     href: "/cadastro?perfil=clinica",
+    chip: "bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white",
+    badge: "bg-purple-50 text-purple-700",
   },
   {
     id: "hospital",
     label: "Sou Hospital",
     tagline: "ERP hospitalar com IA preditiva e TISS/SUS",
+    highlight: "Leitos + SAE + IA",
     icon: Hospital,
     href: "/cadastro?perfil=hospital",
+    chip: "bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white",
+    badge: "bg-rose-50 text-rose-700",
   },
 ];
 

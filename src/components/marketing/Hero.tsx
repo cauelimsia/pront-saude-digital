@@ -22,7 +22,7 @@ export function Hero() {
 
         <h1 className="mx-auto max-w-4xl text-balance text-4xl font-extrabold tracking-tight text-ink-900 sm:text-6xl">
           Sua Saúde Digital{" "}
-          <span className="bg-gradient-to-r from-brand-600 to-brand-400 bg-clip-text text-transparent">
+          <span className="bg-gradient-to-r from-brand-600 to-accent-500 bg-clip-text text-transparent">
             Completa
           </span>
         </h1>
