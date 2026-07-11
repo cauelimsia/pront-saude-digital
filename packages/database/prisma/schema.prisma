@@ -1,0 +1,311 @@
+// Schema do fluxo vertical do MVP.
+// Modelos de fases futuras (User/Session/RefreshToken, AlertRule/AlertDelivery,
+// Participant/EventMatch/Review, BookmakerLimit, AuditLog) estão documentados
+// em docs/IMPLEMENTATION_PLAN.md e serão adicionados nas fases 4, 7 e 9.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProviderKind {
+  MOCK
+  REST
+}
+
+enum EventStatus {
+  SCHEDULED
+  LIVE
+  SUSPENDED
+  FINISHED
+  CANCELLED
+}
+
+enum MarketType {
+  MATCH_WINNER_2WAY
+  ONE_X_TWO
+  TOTALS
+  BTTS
+}
+
+enum MarketPeriod {
+  FULL_TIME
+  FIRST_HALF
+}
+
+enum MarketStatus {
+  OPEN
+  SUSPENDED
+}
+
+enum IngestionStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum OpportunityStatus {
+  DETECTED
+  VALIDATING
+  ACTIVE
+  STALE
+  INVALIDATED
+  EXPIRED
+  UNEXECUTABLE
+  MANUAL_REVIEW
+}
+
+enum ValidationResult {
+  CONFIRMED
+  REJECTED_STALE_ODDS
+  REJECTED_NO_ARBITRAGE
+  REJECTED_MARKET_SUSPENDED
+  REJECTED_UNPROFITABLE_ROUNDING
+}
+
+model Provider {
+  id        String       @id @default(uuid()) @db.Uuid
+  key       String       @unique
+  name      String
+  kind      ProviderKind
+  enabled   Boolean      @default(true)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  snapshots  OddsSnapshot[]
+  batches    IngestionBatch[]
+  healthLogs ProviderHealthLog[]
+}
+
+model ProviderHealthLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  providerId String   @db.Uuid
+  healthy    Boolean
+  latencyMs  Int
+  message    String?
+  checkedAt  DateTime
+  createdAt  DateTime @default(now())
+
+  provider Provider @relation(fields: [providerId], references: [id])
+
+  @@index([providerId, checkedAt(sort: Desc)])
+}
+
+model Bookmaker {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  snapshots OddsSnapshot[]
+  legs      SurebetLeg[]
+}
+
+model Sport {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  competitions Competition[]
+}
+
+model Competition {
+  id        String   @id @default(uuid()) @db.Uuid
+  sportId   String   @db.Uuid
+  key       String
+  name      String
+  country   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sport  Sport   @relation(fields: [sportId], references: [id])
+  events Event[]
+
+  @@unique([sportId, key])
+}
+
+model Event {
+  id            String      @id @default(uuid()) @db.Uuid
+  competitionId String      @db.Uuid
+  homeName      String
+  awayName      String
+  startsAt      DateTime
+  status        EventStatus @default(SCHEDULED)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  competition    Competition          @relation(fields: [competitionId], references: [id])
+  providerEvents ProviderEventLink[]
+  markets        Market[]
+  opportunities  SurebetOpportunity[]
+
+  @@index([startsAt])
+  @@index([competitionId, startsAt])
+}
+
+// Vínculo evento canônico ↔ identificador externo no provedor.
+// Na fase de matching, ganha score/evidências; com um único provedor o
+// vínculo é 1:1 pelo externalId.
+model ProviderEventLink {
+  id          String   @id @default(uuid()) @db.Uuid
+  eventId     String   @db.Uuid
+  providerKey String
+  externalId  String
+  createdAt   DateTime @default(now())
+
+  event Event @relation(fields: [eventId], references: [id])
+
+  @@unique([providerKey, externalId])
+  @@index([eventId])
+}
+
+model Market {
+  id        String       @id @default(uuid()) @db.Uuid
+  eventId   String       @db.Uuid
+  type      MarketType
+  period    MarketPeriod @default(FULL_TIME)
+  // Linha do mercado (ex.: 2.5 em totais). Decimal para comparação exata;
+  // mercados sem linha usam null e a unique parcial via linha "0" sentinel é
+  // evitada usando coalescência no código de upsert.
+  line      Decimal?     @db.Decimal(10, 3)
+  status    MarketStatus @default(OPEN)
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  event         Event                @relation(fields: [eventId], references: [id])
+  selections    Selection[]
+  opportunities SurebetOpportunity[]
+
+  @@unique([eventId, type, period, line])
+  @@index([eventId])
+}
+
+model Selection {
+  id        String   @id @default(uuid()) @db.Uuid
+  marketId  String   @db.Uuid
+  outcome   String // HOME | DRAW | AWAY | OVER | UNDER | YES | NO
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  market    Market         @relation(fields: [marketId], references: [id])
+  snapshots OddsSnapshot[]
+  legs      SurebetLeg[]
+
+  @@unique([marketId, outcome])
+}
+
+model IngestionBatch {
+  id           String          @id @default(uuid()) @db.Uuid
+  providerId   String          @db.Uuid
+  cycle        Int
+  status       IngestionStatus @default(RUNNING)
+  startedAt    DateTime        @default(now())
+  finishedAt   DateTime?
+  oddsCount    Int             @default(0)
+  errorMessage String?
+
+  provider  Provider       @relation(fields: [providerId], references: [id])
+  snapshots OddsSnapshot[]
+
+  @@unique([providerId, cycle])
+  @@index([providerId, startedAt(sort: Desc)])
+}
+
+model OddsSnapshot {
+  id                String   @id @default(uuid()) @db.Uuid
+  selectionId       String   @db.Uuid
+  bookmakerId       String   @db.Uuid
+  providerId        String   @db.Uuid
+  ingestionBatchId  String   @db.Uuid
+  odd               Decimal  @db.Decimal(12, 4)
+  collectedAt       DateTime
+  providerTimestamp DateTime
+  latencyMs         Int      @default(0)
+  createdAt         DateTime @default(now())
+
+  selection Selection      @relation(fields: [selectionId], references: [id])
+  bookmaker Bookmaker      @relation(fields: [bookmakerId], references: [id])
+  provider  Provider       @relation(fields: [providerId], references: [id])
+  batch     IngestionBatch @relation(fields: [ingestionBatchId], references: [id])
+
+  // Idempotência: reprocessar o mesmo payload não duplica snapshots.
+  @@unique([providerId, bookmakerId, selectionId, providerTimestamp])
+  @@index([selectionId, bookmakerId, collectedAt(sort: Desc)])
+}
+
+model SurebetOpportunity {
+  id        String            @id @default(uuid()) @db.Uuid
+  eventId   String            @db.Uuid
+  marketId  String            @db.Uuid
+  // Chave determinística: evento + mercado + pares seleção:casa ordenados.
+  // Redetecção da mesma estrutura atualiza em vez de duplicar.
+  dedupeKey String            @unique
+  status    OpportunityStatus @default(DETECTED)
+
+  inverseSum       Decimal @db.Decimal(18, 12)
+  payoutMultiplier Decimal @db.Decimal(18, 12)
+  profitPercent    Decimal @db.Decimal(9, 4)
+  // Plano de stakes para a banca de referência, após arredondamento.
+  referenceStake       Decimal @db.Decimal(14, 2)
+  totalStaked          Decimal @db.Decimal(14, 2)
+  worstProfit          Decimal @db.Decimal(14, 2)
+  bestProfit           Decimal @db.Decimal(14, 2)
+  profitPercentRounded Decimal @db.Decimal(9, 4)
+
+  confidenceScore Int
+  // Explicação auditável: fatores do confidence, detecção e plano de stakes.
+  explanation Json
+
+  detectedAt      DateTime
+  lastValidatedAt DateTime?
+  expiresAt       DateTime
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  event       Event                @relation(fields: [eventId], references: [id])
+  market      Market               @relation(fields: [marketId], references: [id])
+  legs        SurebetLeg[]
+  validations SurebetValidation[]
+
+  @@index([status, profitPercent(sort: Desc)])
+  @@index([status, expiresAt])
+  @@index([eventId])
+}
+
+model SurebetLeg {
+  id            String  @id @default(uuid()) @db.Uuid
+  opportunityId String  @db.Uuid
+  selectionId   String  @db.Uuid
+  bookmakerId   String  @db.Uuid
+  odd           Decimal @db.Decimal(12, 4)
+  stakeRatio    Decimal @db.Decimal(18, 12)
+  suggestedStake Decimal @db.Decimal(14, 2)
+  grossReturn   Decimal @db.Decimal(14, 2)
+  oddsCollectedAt DateTime
+
+  opportunity SurebetOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  selection   Selection          @relation(fields: [selectionId], references: [id])
+  bookmaker   Bookmaker          @relation(fields: [bookmakerId], references: [id])
+
+  @@unique([opportunityId, selectionId])
+}
+
+model SurebetValidation {
+  id            String           @id @default(uuid()) @db.Uuid
+  opportunityId String           @db.Uuid
+  result        ValidationResult
+  details       Json
+  createdAt     DateTime         @default(now())
+
+  opportunity SurebetOpportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+
+  @@index([opportunityId, createdAt(sort: Desc)])
+}

@@ -1,0 +1,29 @@
+{
+  "name": "@rataria/worker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "dev": "tsx watch src/main.ts",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@rataria/database": "workspace:*",
+    "@rataria/odds-engine": "workspace:*",
+    "@rataria/provider-sdk": "workspace:*",
+    "@rataria/shared": "workspace:*",
+    "bullmq": "^5.34.10",
+    "decimal.js": "^10.5.0",
+    "ioredis": "^5.4.2",
+    "pino": "^9.6.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3",
+    "vitest": "^3.2.4"
+  }
+}
