@@ -15,8 +15,14 @@ describe.skipIf(!hasInfra)("pipeline de ingestão e detecção (integração)", 
   const cycle = 900_000_000 + Math.floor(Math.random() * 1_000_000); // fora dos ciclos reais
   let redis: Redis;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
+    // Estado limpo: este arquivo exercita o provedor primário isolado, então
+    // não pode herdar dados de outros provedores (ex.: bet-charlie do Bravo,
+    // que formaria surebets de totais no Fla×Pal).
+    await getPrisma().$executeRawUnsafe(
+      'TRUNCATE "SurebetValidation","SurebetLeg","SurebetOpportunity","OddsSnapshot","IngestionBatch","EventMatchReview","EventMatch","ProviderEventLink","Selection","Market","Event","ProviderHealthLog" RESTART IDENTITY CASCADE;',
+    );
   });
 
   afterAll(async () => {
@@ -27,7 +33,8 @@ describe.skipIf(!hasInfra)("pipeline de ingestão e detecção (integração)", 
   it("ingere odds do mock e repetir o mesmo ciclo não duplica snapshots", async () => {
     const first = await runIngestion(provider, cycle);
     expect(first.snapshotsInserted).toBeGreaterThan(0);
-    expect(first.eventIds.length).toBe(2);
+    // mock-primary agora expõe 6 eventos (tênis + 5 de futebol de apoio)
+    expect(first.eventIds.length).toBe(6);
 
     const prisma = getPrisma();
     const before = await prisma.oddsSnapshot.count({

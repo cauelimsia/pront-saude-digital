@@ -33,6 +33,26 @@ export class CatalogController {
     }));
   }
 
+  @Get("events/:id/provider-events")
+  @ApiOperation({ summary: "Representações de provedores associadas ao evento canônico" })
+  async providerEvents(@Param("id", ParseUUIDPipe) id: string) {
+    const prisma = getPrisma();
+    const links = await prisma.providerEventLink.findMany({
+      where: { eventId: id },
+      orderBy: { providerKey: "asc" },
+    });
+    return links.map((l) => ({
+      providerKey: l.providerKey,
+      externalId: l.externalId,
+      status: l.status,
+      reversedParticipants: l.reversedParticipants,
+      home: l.homeNameOriginal,
+      away: l.awayNameOriginal,
+      competition: l.competitionNameOriginal,
+      startsAt: l.startsAt?.toISOString() ?? null,
+    }));
+  }
+
   @Get("events/:id/odds")
   @ApiOperation({ summary: "Últimas odds por mercado/casa do evento" })
   async eventOdds(@Param("id", ParseUUIDPipe) id: string) {

@@ -42,6 +42,13 @@ export const mockCompetitions: ProviderCompetition[] = [
     name: "Brasileirão Série A",
     country: "Brasil",
   },
+  {
+    externalId: "cp-ligapro",
+    sportExternalId: "sp-football",
+    key: "ligapro-ecuador",
+    name: "LigaPro Ecuador",
+    country: "Equador",
+  },
 ];
 
 export function buildMockEvents(now: Date): ProviderEvent[] {
@@ -61,6 +68,39 @@ export function buildMockEvents(now: Date): ProviderEvent[] {
       homeName: "Flamengo",
       awayName: "Palmeiras",
       startsAt: inHours(8),
+      status: "SCHEDULED",
+    },
+    // Eventos de apoio aos cenários de matching multi-provedor (Fase 4).
+    {
+      externalId: "ev-spfc-cor",
+      competitionExternalId: "cp-brasileirao",
+      homeName: "São Paulo",
+      awayName: "Corinthians",
+      startsAt: inHours(10),
+      status: "SCHEDULED",
+    },
+    {
+      externalId: "ev-bar-eme",
+      competitionExternalId: "cp-ligapro",
+      homeName: "Barcelona SC",
+      awayName: "Emelec",
+      startsAt: inHours(12),
+      status: "SCHEDULED",
+    },
+    {
+      externalId: "ev-cru-cam",
+      competitionExternalId: "cp-brasileirao",
+      homeName: "Cruzeiro",
+      awayName: "Atlético Mineiro",
+      startsAt: inHours(26),
+      status: "SCHEDULED",
+    },
+    {
+      externalId: "ev-gre-int",
+      competitionExternalId: "cp-brasileirao",
+      homeName: "Grêmio",
+      awayName: "Internacional",
+      startsAt: inHours(30),
       status: "SCHEDULED",
     },
   ];
@@ -122,6 +162,55 @@ export const mockOddsSeeds: OddsSeed[] = [
       { outcome: OUTCOMES.HOME, odd: "2.55" },
       { outcome: OUTCOMES.DRAW, odd: "3.20" },
       { outcome: OUTCOMES.AWAY, odd: "2.75" },
+    ],
+  },
+  // ── Eventos de apoio (Fase 4): 1X2 sem arbitragem em cada um ────────────
+  {
+    eventExternalId: "ev-spfc-cor",
+    bookmakerKey: "bet-alpha",
+    bookmakerName: "Bet Alpha",
+    marketType: MARKET_TYPES.ONE_X_TWO,
+    line: null,
+    outcomes: [
+      { outcome: OUTCOMES.HOME, odd: "2.30" },
+      { outcome: OUTCOMES.DRAW, odd: "3.30" },
+      { outcome: OUTCOMES.AWAY, odd: "3.10" },
+    ],
+  },
+  {
+    eventExternalId: "ev-bar-eme",
+    bookmakerKey: "bet-alpha",
+    bookmakerName: "Bet Alpha",
+    marketType: MARKET_TYPES.ONE_X_TWO,
+    line: null,
+    outcomes: [
+      { outcome: OUTCOMES.HOME, odd: "2.05" },
+      { outcome: OUTCOMES.DRAW, odd: "3.10" },
+      { outcome: OUTCOMES.AWAY, odd: "3.60" },
+    ],
+  },
+  {
+    eventExternalId: "ev-cru-cam",
+    bookmakerKey: "bet-alpha",
+    bookmakerName: "Bet Alpha",
+    marketType: MARKET_TYPES.ONE_X_TWO,
+    line: null,
+    outcomes: [
+      { outcome: OUTCOMES.HOME, odd: "2.20" },
+      { outcome: OUTCOMES.DRAW, odd: "3.40" },
+      { outcome: OUTCOMES.AWAY, odd: "3.30" },
+    ],
+  },
+  {
+    eventExternalId: "ev-gre-int",
+    bookmakerKey: "bet-alpha",
+    bookmakerName: "Bet Alpha",
+    marketType: MARKET_TYPES.ONE_X_TWO,
+    line: null,
+    outcomes: [
+      { outcome: OUTCOMES.HOME, odd: "2.30" },
+      { outcome: OUTCOMES.DRAW, odd: "3.25" },
+      { outcome: OUTCOMES.AWAY, odd: "3.00" },
     ],
   },
   // ── Futebol totais 2.5: sem arbitragem ───────────────────────────────────

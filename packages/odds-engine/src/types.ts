@@ -110,6 +110,13 @@ export interface ConfidenceInput {
   secondsToEventStart: number;
   /** Última revalidação recalculou e confirmou a arbitragem? */
   revalidated: boolean;
+  /**
+   * Menor score de matching entre os vínculos de provedor usados (0–100).
+   * Ausente/100 = todos os vínculos são diretos ou perfeitos.
+   */
+  minMatchScore?: number;
+  /** Alguma associação usada foi aprovada manualmente? */
+  manualMatch?: boolean;
 }
 
 export interface ConfidenceResult {

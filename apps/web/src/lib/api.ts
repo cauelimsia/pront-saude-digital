@@ -34,6 +34,10 @@ export interface Surebet {
   worstProfit: string;
   bestProfit: string;
   confidenceScore: number;
+  providerKeys: string[];
+  providerCount: number;
+  minMatchScore: number | null;
+  manualMatch: boolean;
   oddsAgeSeconds: number;
   detectedAt: string;
   lastValidatedAt: string | null;
@@ -109,6 +113,86 @@ export function simulate(
   body: { totalStake: string; stakeIncrement?: string },
 ): Promise<SimulationResult> {
   return request<SimulationResult>(`/surebets/${id}/simulate`, {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+// ─────────────────────────── Matching ───────────────────────────
+
+export interface MatchReason {
+  code: string;
+  label: string;
+  impact: number;
+}
+
+export interface EventMatchView {
+  id: string;
+  score: number;
+  decision: string;
+  algorithmVersion: string;
+  reversedParticipants: boolean;
+  features: {
+    competitionSimilarity: number;
+    participantDirectSimilarity: number;
+    participantReversedSimilarity: number;
+    startTimeDifferenceSeconds: number;
+    countryCompatible: boolean | null;
+    hardConflictReasons: string[];
+  };
+  explanation: {
+    positiveReasons: MatchReason[];
+    negativeReasons: MatchReason[];
+    hardConflictReasons: MatchReason[];
+  };
+  createdAt: string;
+  providerEvent: {
+    providerKey: string;
+    externalId: string;
+    home: string | null;
+    away: string | null;
+    competition: string | null;
+    startsAt: string | null;
+    status: string;
+  };
+  candidateEvent: {
+    id: string;
+    home: string;
+    away: string;
+    competition: string;
+    sport: string;
+    country: string | null;
+    startsAt: string;
+  };
+}
+
+export interface MatchReview {
+  id: string;
+  status: string;
+  decidedBy: string | null;
+  note: string | null;
+  decidedAt: string | null;
+  createdAt: string;
+  match: EventMatchView;
+}
+
+export interface ReviewList {
+  page: number;
+  pageSize: number;
+  total: number;
+  items: MatchReview[];
+}
+
+export function listReviews(status = "PENDING"): Promise<ReviewList> {
+  return request<ReviewList>(`/matching/reviews?status=${status}`);
+}
+
+export function decideReview(
+  id: string,
+  action: "approve" | "reject",
+  body: { note?: string; decidedBy?: string } = {},
+): Promise<{ status: string; idempotent: boolean }> {
+  return request(`/matching/reviews/${id}/${action}`, {
     method: "POST",
     body: JSON.stringify(body),
   });

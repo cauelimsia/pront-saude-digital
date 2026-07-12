@@ -67,6 +67,43 @@ enum ValidationResult {
   REJECTED_UNPROFITABLE_ROUNDING
 }
 
+// Estado do vínculo evento-do-provedor ↔ evento canônico.
+enum ProviderEventLinkStatus {
+  // Vínculo aprovado automaticamente pelo algoritmo de matching.
+  AUTO_LINKED
+  // Vínculo aprovado por revisão manual.
+  MANUALLY_LINKED
+  // Sem correspondência aceitável: o provedor originou o próprio evento canônico.
+  NEW_EVENT
+  // Aguardando revisão manual — odds NÃO são persistidas neste estado.
+  PENDING_REVIEW
+}
+
+enum MatchDecision {
+  AUTO_APPROVED
+  REVIEW_REQUIRED
+  REJECTED
+  MANUALLY_APPROVED
+  MANUALLY_REJECTED
+  SUPERSEDED
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AliasKind {
+  PARTICIPANT
+  COMPETITION
+}
+
+enum AliasStatus {
+  APPROVED
+  PENDING
+}
+
 model Provider {
   id        String       @id @default(uuid()) @db.Uuid
   key       String       @unique
@@ -145,25 +182,117 @@ model Event {
   providerEvents ProviderEventLink[]
   markets        Market[]
   opportunities  SurebetOpportunity[]
+  matchCandidacies EventMatch[]
 
   @@index([startsAt])
   @@index([competitionId, startsAt])
 }
 
-// Vínculo evento canônico ↔ identificador externo no provedor.
-// Na fase de matching, ganha score/evidências; com um único provedor o
-// vínculo é 1:1 pelo externalId.
+// Representação do evento no provedor + vínculo com o evento canônico.
+// eventId é null enquanto o matching aguarda revisão manual.
 model ProviderEventLink {
-  id          String   @id @default(uuid()) @db.Uuid
-  eventId     String   @db.Uuid
+  id          String                  @id @default(uuid()) @db.Uuid
+  eventId     String?                 @db.Uuid
   providerKey String
   externalId  String
-  createdAt   DateTime @default(now())
+  status      ProviderEventLinkStatus @default(NEW_EVENT)
+  // Ordem dos participantes invertida em relação ao evento canônico —
+  // seleções HOME/AWAY são remapeadas na persistência de odds.
+  reversedParticipants Boolean @default(false)
 
-  event Event @relation(fields: [eventId], references: [id])
+  // Valor original preservado + normalizado, com versão do normalizador.
+  homeNameOriginal        String?
+  awayNameOriginal        String?
+  homeNameNormalized      String?
+  awayNameNormalized      String?
+  competitionNameOriginal String?
+  // Competição (do payload do provedor) — usada para criar o evento canônico
+  // próprio quando uma revisão é rejeitada.
+  competitionId String?   @db.Uuid
+  startsAt                DateTime?
+  normalizerVersion       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  event   Event?       @relation(fields: [eventId], references: [id])
+  matches EventMatch[]
 
   @@unique([providerKey, externalId])
   @@index([eventId])
+  @@index([status])
+}
+
+// Decisão de matching entre uma representação de provedor e um candidato canônico.
+model EventMatch {
+  id                   String        @id @default(uuid()) @db.Uuid
+  providerEventLinkId  String        @db.Uuid
+  candidateEventId     String        @db.Uuid
+  algorithmVersion     String
+  score                Int
+  decision             MatchDecision
+  reversedParticipants Boolean       @default(false)
+  // Auditável: features extraídas e razões positivas/negativas/eliminatórias.
+  features    Json
+  explanation Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  link           ProviderEventLink @relation(fields: [providerEventLinkId], references: [id], onDelete: Cascade)
+  candidateEvent Event             @relation(fields: [candidateEventId], references: [id])
+  review         EventMatchReview?
+
+  // Uma decisão por par (representação, candidato, versão do algoritmo).
+  @@unique([providerEventLinkId, candidateEventId, algorithmVersion])
+  @@index([decision, createdAt(sort: Desc)])
+  @@index([candidateEventId])
+}
+
+model EventMatchReview {
+  id           String       @id @default(uuid()) @db.Uuid
+  eventMatchId String       @unique @db.Uuid
+  status       ReviewStatus @default(PENDING)
+  decidedBy    String?
+  note         String?
+  decidedAt    DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  eventMatch EventMatch @relation(fields: [eventMatchId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt(sort: Desc)])
+}
+
+// Aliases aprovados de participantes/competições — melhoram matching futuro.
+model NameAlias {
+  id                  String      @id @default(uuid()) @db.Uuid
+  kind                AliasKind
+  canonicalValue      String
+  canonicalNormalized String
+  aliasValue          String
+  aliasNormalized     String
+  status              AliasStatus @default(APPROVED)
+  source              String // "seed" | "manual-review"
+  approvedBy          String?
+  approvedAt          DateTime?
+  evidence            Json?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  @@unique([kind, aliasNormalized, canonicalNormalized])
+  @@index([kind, aliasNormalized])
+}
+
+model AuditLog {
+  id       String   @id @default(uuid()) @db.Uuid
+  action   String
+  entity   String
+  entityId String
+  actor    String
+  details  Json
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
 }
 
 model Market {
@@ -247,8 +376,16 @@ model SurebetOpportunity {
   marketId  String            @db.Uuid
   // Chave determinística: evento + mercado + pares seleção:casa ordenados.
   // Redetecção da mesma estrutura atualiza em vez de duplicar.
-  dedupeKey String            @unique
+  // Unicidade PARCIAL (somente estados não-terminais) via índice raw na
+  // migração — oportunidade que reaparece após EXPIRED/INVALIDATED é um
+  // novo ciclo de vida (ADR-0011).
+  dedupeKey String
   status    OpportunityStatus @default(DETECTED)
+
+  // Rastreabilidade multi-provedor (Fase 4 — matching).
+  providerKeys  String[] @default([])
+  minMatchScore Int?
+  manualMatch   Boolean  @default(false)
 
   inverseSum       Decimal @db.Decimal(18, 12)
   payoutMultiplier Decimal @db.Decimal(18, 12)
@@ -278,6 +415,7 @@ model SurebetOpportunity {
   @@index([status, profitPercent(sort: Desc)])
   @@index([status, expiresAt])
   @@index([eventId])
+  @@index([dedupeKey])
 }
 
 model SurebetLeg {

@@ -5,20 +5,34 @@ import {
   type ProviderOddsPayload,
 } from "@rataria/provider-sdk";
 import { logger } from "./logger";
+import { resolveProviderEvent } from "./matching";
 
 export interface IngestionResult {
   batchId: string;
   cycle: number;
   snapshotsInserted: number;
   eventIds: string[];
+  /** Representações aguardando revisão manual (odds retidas). */
+  pendingReview: number;
+}
+
+/** Resultados dependentes de mando: remapeados quando a ordem está invertida. */
+const HOME_AWAY_MARKETS = new Set<string>(["MATCH_WINNER_2WAY", "ONE_X_TWO"]);
+
+function remapOutcome(outcome: string, marketType: string, reversed: boolean): string {
+  if (!reversed || !HOME_AWAY_MARKETS.has(marketType)) return outcome;
+  if (outcome === "HOME") return "AWAY";
+  if (outcome === "AWAY") return "HOME";
+  return outcome; // DRAW e demais não mudam
 }
 
 /**
- * Pipeline de ingestão: coleta → validação (Zod) → normalização (upserts)
- * → snapshots com dedupe por unique composto.
+ * Pipeline de ingestão: coleta → validação (Zod) → matching/normalização
+ * (upserts) → snapshots com dedupe por unique composto.
  *
  * Idempotente: repetir o mesmo ciclo reutiliza o batch (unique providerId+cycle)
- * e `skipDuplicates` impede snapshots repetidos.
+ * e `skipDuplicates` impede snapshots repetidos. Eventos aguardando revisão
+ * manual NÃO têm odds persistidas (nunca alimentam surebets).
  */
 export async function runIngestion(
   provider: OddsProvider,
@@ -37,7 +51,6 @@ export async function runIngestion(
   const raw = await provider.getOdds({ cycle });
   const latencyMs = Date.now() - startedAt;
 
-  // Validação de payload na fronteira da ingestão.
   const parsed = providerOddsPayloadSchema.safeParse(raw);
   if (!parsed.success) {
     logger.error(
@@ -55,21 +68,26 @@ export async function runIngestion(
   });
 
   try {
-    const normalized = await normalize(payload, providerRow.id);
+    const normalized = await normalize(payload);
 
     const snapshotRows: Prisma.OddsSnapshotCreateManyInput[] = [];
     for (const entry of payload.odds) {
       if (entry.marketStatus !== "OPEN") continue; // mercados suspensos não entram
-      const eventId = normalized.eventIdByExternal.get(entry.eventExternalId);
-      if (!eventId) continue;
-      const marketKey = `${eventId}|${entry.marketType}|${entry.period}|${entry.line ?? ""}`;
+      const meta = normalized.eventMetaByExternal.get(entry.eventExternalId);
+      if (!meta) continue; // pendente de revisão ou desconhecido: odds retidas
+      const marketKey = `${meta.eventId}|${entry.marketType}|${entry.period}|${entry.line ?? ""}`;
       const market = normalized.marketByKey.get(marketKey);
       if (!market) continue;
       const bookmakerId = normalized.bookmakerIdByKey.get(entry.bookmakerKey);
       if (!bookmakerId) continue;
 
       for (const outcome of entry.outcomes) {
-        const selectionId = market.selectionIdByOutcome.get(outcome.outcome);
+        const canonicalOutcome = remapOutcome(
+          outcome.outcome,
+          entry.marketType,
+          meta.reversedParticipants,
+        );
+        const selectionId = market.selectionIdByOutcome.get(canonicalOutcome);
         if (!selectionId) continue;
         snapshotRows.push({
           selectionId,
@@ -91,11 +109,7 @@ export async function runIngestion(
 
     await prisma.ingestionBatch.update({
       where: { id: batch.id },
-      data: {
-        status: "COMPLETED",
-        finishedAt: new Date(),
-        oddsCount: inserted.count,
-      },
+      data: { status: "COMPLETED", finishedAt: new Date(), oddsCount: inserted.count },
     });
 
     logger.info(
@@ -104,6 +118,7 @@ export async function runIngestion(
         cycle,
         providerId: provider.providerId,
         snapshots: inserted.count,
+        pendingReview: normalized.pendingReview,
         latencyMs,
       },
       "ingestão concluída",
@@ -113,7 +128,8 @@ export async function runIngestion(
       batchId: batch.id,
       cycle,
       snapshotsInserted: inserted.count,
-      eventIds: [...normalized.eventIdByExternal.values()],
+      eventIds: [...new Set([...normalized.eventMetaByExternal.values()].map((m) => m.eventId))],
+      pendingReview: normalized.pendingReview,
     };
   } catch (error) {
     await prisma.ingestionBatch.update({
@@ -128,10 +144,16 @@ export async function runIngestion(
   }
 }
 
+interface EventMeta {
+  eventId: string;
+  reversedParticipants: boolean;
+}
+
 interface NormalizedRefs {
-  eventIdByExternal: Map<string, string>;
+  eventMetaByExternal: Map<string, EventMeta>;
   bookmakerIdByKey: Map<string, string>;
   marketByKey: Map<string, { id: string; selectionIdByOutcome: Map<string, string> }>;
+  pendingReview: number;
 }
 
 const OUTCOME_LABELS: Record<string, (home: string, away: string) => string> = {
@@ -144,78 +166,54 @@ const OUTCOME_LABELS: Record<string, (home: string, away: string) => string> = {
   NO: () => "Não",
 };
 
-async function normalize(
-  payload: ProviderOddsPayload,
-  providerRowId: string,
-): Promise<NormalizedRefs> {
+async function normalize(payload: ProviderOddsPayload): Promise<NormalizedRefs> {
   const prisma = getPrisma();
-  void providerRowId;
 
-  const sportIdByExternal = new Map<string, string>();
+  const sportByExternal = new Map<string, { id: string; key: string }>();
   for (const sport of payload.sports) {
     const row = await prisma.sport.upsert({
       where: { key: sport.key },
       update: { name: sport.name },
       create: { key: sport.key, name: sport.name },
     });
-    sportIdByExternal.set(sport.externalId, row.id);
+    sportByExternal.set(sport.externalId, { id: row.id, key: row.key });
   }
 
-  const competitionIdByExternal = new Map<string, string>();
+  const competitionByExternal = new Map<
+    string,
+    { competitionId: string; competitionName: string; sportKey: string; country: string | null }
+  >();
   for (const comp of payload.competitions) {
-    const sportId = sportIdByExternal.get(comp.sportExternalId);
-    if (!sportId) continue;
+    const sport = sportByExternal.get(comp.sportExternalId);
+    if (!sport) continue;
     const row = await prisma.competition.upsert({
-      where: { sportId_key: { sportId, key: comp.key } },
+      where: { sportId_key: { sportId: sport.id, key: comp.key } },
       update: { name: comp.name, country: comp.country },
-      create: { sportId, key: comp.key, name: comp.name, country: comp.country },
+      create: { sportId: sport.id, key: comp.key, name: comp.name, country: comp.country },
     });
-    competitionIdByExternal.set(comp.externalId, row.id);
+    competitionByExternal.set(comp.externalId, {
+      competitionId: row.id,
+      competitionName: row.name,
+      sportKey: sport.key,
+      country: row.country,
+    });
   }
 
-  const eventIdByExternal = new Map<string, string>();
+  const eventMetaByExternal = new Map<string, EventMeta>();
+  let pendingReview = 0;
   for (const event of payload.events) {
-    const competitionId = competitionIdByExternal.get(event.competitionExternalId);
-    if (!competitionId) continue;
+    const competition = competitionByExternal.get(event.competitionExternalId);
+    if (!competition) continue;
 
-    // Correspondência mínima do fluxo vertical: vínculo direto pelo
-    // identificador externo do provedor (matching probabilístico é a Fase 4).
-    const link = await prisma.providerEventLink.findUnique({
-      where: {
-        providerKey_externalId: {
-          providerKey: payload.providerId,
-          externalId: event.externalId,
-        },
-      },
-    });
-
-    let eventId: string;
-    if (link) {
-      eventId = link.eventId;
-      await prisma.event.update({
-        where: { id: eventId },
-        data: { status: event.status, startsAt: event.startsAt },
-      });
-    } else {
-      const created = await prisma.event.create({
-        data: {
-          competitionId,
-          homeName: event.homeName,
-          awayName: event.awayName,
-          startsAt: event.startsAt,
-          status: event.status,
-        },
-      });
-      await prisma.providerEventLink.create({
-        data: {
-          eventId: created.id,
-          providerKey: payload.providerId,
-          externalId: event.externalId,
-        },
-      });
-      eventId = created.id;
+    const resolved = await resolveProviderEvent(payload.providerId, event, competition);
+    if (resolved.pendingReview || !resolved.eventId) {
+      pendingReview += 1;
+      continue;
     }
-    eventIdByExternal.set(event.externalId, eventId);
+    eventMetaByExternal.set(event.externalId, {
+      eventId: resolved.eventId,
+      reversedParticipants: resolved.reversedParticipants,
+    });
   }
 
   const bookmakerIdByKey = new Map<string, string>();
@@ -231,29 +229,38 @@ async function normalize(
       bookmakerIdByKey.set(bookmaker.key, bookmaker.id);
     }
 
-    const eventId = eventIdByExternal.get(entry.eventExternalId);
-    if (!eventId) continue;
+    const meta = eventMetaByExternal.get(entry.eventExternalId);
+    if (!meta) continue;
     const providerEvent = payload.events.find((e) => e.externalId === entry.eventExternalId)!;
+    // Para rotular seleções canônicas com o nome certo quando a ordem do
+    // provedor está invertida em relação ao evento canônico.
+    const canonicalHome = meta.reversedParticipants
+      ? providerEvent.awayName
+      : providerEvent.homeName;
+    const canonicalAway = meta.reversedParticipants
+      ? providerEvent.homeName
+      : providerEvent.awayName;
 
-    const marketKey = `${eventId}|${entry.marketType}|${entry.period}|${entry.line ?? ""}`;
-    if (!marketByKey.has(marketKey)) {
+    const marketKey = `${meta.eventId}|${entry.marketType}|${entry.period}|${entry.line ?? ""}`;
+    let market = marketByKey.get(marketKey);
+    if (!market) {
       const line = entry.line === null ? null : new Prisma.Decimal(entry.line);
       // Unique composto com coluna nullable não deduplica NULLs no Postgres —
       // find-or-create explícito (worker de ingestão é único e sequencial).
       const existing = await prisma.market.findFirst({
         where: {
-          eventId,
+          eventId: meta.eventId,
           type: entry.marketType as MarketType,
           period: entry.period as MarketPeriod,
           line: line === null ? null : { equals: line },
         },
         include: { selections: true },
       });
-      const market =
+      const row =
         existing ??
         (await prisma.market.create({
           data: {
-            eventId,
+            eventId: meta.eventId,
             type: entry.marketType as MarketType,
             period: entry.period as MarketPeriod,
             line,
@@ -261,52 +268,36 @@ async function normalize(
           },
           include: { selections: true },
         }));
+      market = {
+        id: row.id,
+        selectionIdByOutcome: new Map(row.selections.map((s) => [s.outcome, s.id])),
+      };
+      marketByKey.set(marketKey, market);
+    }
 
-      const selectionIdByOutcome = new Map<string, string>(
-        market.selections.map((s) => [s.outcome, s.id]),
+    for (const outcome of entry.outcomes) {
+      const canonicalOutcome = remapOutcome(
+        outcome.outcome,
+        entry.marketType,
+        meta.reversedParticipants,
       );
-      for (const outcome of entry.outcomes) {
-        if (!selectionIdByOutcome.has(outcome.outcome)) {
-          const label = OUTCOME_LABELS[outcome.outcome]?.(
-            providerEvent.homeName,
-            providerEvent.awayName,
-          );
-          const selection = await prisma.selection.upsert({
-            where: { marketId_outcome: { marketId: market.id, outcome: outcome.outcome } },
-            update: {},
-            create: {
-              marketId: market.id,
-              outcome: outcome.outcome,
-              name: label ?? outcome.outcome,
-            },
-          });
-          selectionIdByOutcome.set(outcome.outcome, selection.id);
-        }
-      }
-      marketByKey.set(marketKey, { id: market.id, selectionIdByOutcome });
-    } else {
-      // Garante seleções de entradas posteriores do mesmo mercado.
-      const market = marketByKey.get(marketKey)!;
-      for (const outcome of entry.outcomes) {
-        if (!market.selectionIdByOutcome.has(outcome.outcome)) {
-          const label = OUTCOME_LABELS[outcome.outcome]?.(
-            providerEvent.homeName,
-            providerEvent.awayName,
-          );
-          const selection = await prisma.selection.upsert({
-            where: { marketId_outcome: { marketId: market.id, outcome: outcome.outcome } },
-            update: {},
-            create: {
-              marketId: market.id,
-              outcome: outcome.outcome,
-              name: label ?? outcome.outcome,
-            },
-          });
-          market.selectionIdByOutcome.set(outcome.outcome, selection.id);
-        }
+      if (!market.selectionIdByOutcome.has(canonicalOutcome)) {
+        const label = OUTCOME_LABELS[canonicalOutcome]?.(canonicalHome, canonicalAway);
+        const selection = await prisma.selection.upsert({
+          where: {
+            marketId_outcome: { marketId: market.id, outcome: canonicalOutcome },
+          },
+          update: {},
+          create: {
+            marketId: market.id,
+            outcome: canonicalOutcome,
+            name: label ?? canonicalOutcome,
+          },
+        });
+        market.selectionIdByOutcome.set(canonicalOutcome, selection.id);
       }
     }
   }
 
-  return { eventIdByExternal, bookmakerIdByKey, marketByKey };
+  return { eventMetaByExternal, bookmakerIdByKey, marketByKey, pendingReview };
 }

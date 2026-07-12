@@ -9,6 +9,7 @@ export default tseslint.config(
       "**/node_modules/**",
       "**/*.config.{js,mjs,ts}",
       "apps/web/next-env.d.ts",
+      "**/e2e/**",
     ],
   },
   js.configs.recommended,

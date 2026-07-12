@@ -32,7 +32,8 @@ flowchart LR
 | Workspace | Papel |
 |---|---|
 | `packages/odds-engine` | Motor matemático puro (Decimal, determinístico, sem IO) |
-| `packages/provider-sdk` | Contrato `OddsProvider`, mock determinístico, registry |
+| `packages/matching` | Matching de eventos puro (normalização, score explicável, regras eliminatórias) |
+| `packages/provider-sdk` | Contrato `OddsProvider`, dois mocks determinísticos, registry |
 | `packages/database` | Prisma + migrações + seed |
 | `packages/shared` | Mercados canônicos, máquina de estados, validação de env |
 | `apps/worker` | Filas BullMQ: ingestão → detecção → revalidação → expiração |
@@ -97,6 +98,30 @@ pnpm build
 4. Insira o registro do provedor no seed (`packages/database/src/seed.ts`).
 
 Adaptadores não podem conter lógica de arbitragem.
+
+## Como funciona o matching (multi-provedor)
+
+Quando dois provedores descrevem o mesmo evento com nomes/horários/ordem
+diferentes, o pipeline associa as representações a um evento canônico:
+
+1. **Normalização** preserva o original e gera uma forma comparável (minúsculas,
+   sem acentos, pontuação controlada, abreviações, sufixos removíveis).
+2. **Geração de candidatos (blocking)**: mesmo esporte + janela de horário.
+3. **Features** determinísticas: similaridade de participantes (direta e
+   cruzada para ordem invertida), competição, país, diferença de horário, aliases.
+4. **Regras eliminatórias** prevalecem sobre o texto: esporte/data/categoria/
+   competição incompatíveis forçam rejeição, mesmo com nomes idênticos.
+5. **Score** (0–100, versionado) decide: ≥85 aprova automaticamente, ≥60 vai
+   para **revisão manual**, abaixo rejeita.
+
+Odds só se combinam entre eventos com associação **aprovada** (automática ou
+manual). Eventos em revisão não têm odds persistidas; a ordem invertida é
+tratada explicitamente e remapeia as seleções HOME/AWAY (ver ADRs 0007–0010).
+
+A tela **Revisão de matching** (`/matching`) exibe os casos ambíguos com as
+diferenças destacadas e a explicação vinda da API. As ações de aprovar/rejeitar
+usam proteção temporária (`ENABLE_UNAUTHENTICATED_MATCH_REVIEW`, falha em
+produção) até a autenticação da Fase 7.
 
 ## Como adicionar um mercado
 

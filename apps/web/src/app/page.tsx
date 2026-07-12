@@ -129,7 +129,7 @@ export default function DashboardPage() {
                 <th className="px-4 py-3 text-right">Pior lucro*</th>
                 <th className="px-4 py-3 text-center">Confiança</th>
                 <th className="px-4 py-3 text-right">Idade odd</th>
-                <th className="px-4 py-3">Casas</th>
+                <th className="px-4 py-3">Casas · provedores</th>
                 <th className="px-4 py-3" />
               </tr>
             </thead>
@@ -163,7 +163,22 @@ export default function DashboardPage() {
                     {item.oddsAgeSeconds}s
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-400">
-                    {[...new Set(item.legs.map((l) => l.bookmaker.name))].join(" + ")}
+                    <div>{[...new Set(item.legs.map((l) => l.bookmaker.name))].join(" + ")}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1">
+                      {item.providerCount > 1 && (
+                        <span className="rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] text-indigo-300">
+                          {item.providerCount} provedores · match {item.minMatchScore ?? 100}
+                        </span>
+                      )}
+                      {item.manualMatch && (
+                        <span
+                          className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] text-emerald-300"
+                          title="Associação verificada por revisão humana"
+                        >
+                          match manual
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <Link

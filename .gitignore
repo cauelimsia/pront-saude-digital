@@ -30,3 +30,6 @@ pnpm-debug.log*
 .turbo/
 .vercel
 .netlify
+
+# artefatos de runtime
+dump.rdb

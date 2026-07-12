@@ -51,6 +51,10 @@ services:
       REDIS_URL: redis://redis:6379
       API_PORT: 3001
       WEB_ORIGIN: http://localhost:3000
+      NODE_ENV: production
+      # Revisão de matching desabilitada por padrão (produção). Para habilitar
+      # localmente, defina NODE_ENV=development e =true (ADR-0012).
+      ENABLE_UNAUTHENTICATED_MATCH_REVIEW: "false"
     ports:
       - "3001:3001"
     depends_on:

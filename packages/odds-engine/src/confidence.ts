@@ -13,6 +13,9 @@ export interface ConfidenceWeights {
   eventImminentPenalty: number;
   revalidatedBonus: number;
   multiBookmakerBonus: number;
+  /** Penalidade por ponto de score de matching abaixo de 100. */
+  matchScorePenaltyFactor: number;
+  matchScoreMaxPenalty: number;
 }
 
 export const DEFAULT_CONFIDENCE_WEIGHTS: ConfidenceWeights = {
@@ -26,6 +29,8 @@ export const DEFAULT_CONFIDENCE_WEIGHTS: ConfidenceWeights = {
   eventImminentPenalty: 10,
   revalidatedBonus: 10,
   multiBookmakerBonus: 5,
+  matchScorePenaltyFactor: 0.25,
+  matchScoreMaxPenalty: 20,
 };
 
 function classify(score: number): ConfidenceResult["classification"] {
@@ -108,6 +113,29 @@ export function calculateConfidence(
       impact: -weights.eventImminentPenalty,
     });
     score -= weights.eventImminentPenalty;
+  }
+
+  // Qualidade do matching multi-provedor: associações com score menor que
+  // 100 reduzem a confiança operacional (monotônico).
+  const minMatchScore = input.minMatchScore ?? 100;
+  const matchPenalty = Math.min(
+    Math.max(100 - minMatchScore, 0) * weights.matchScorePenaltyFactor,
+    weights.matchScoreMaxPenalty,
+  );
+  if (matchPenalty > 0) {
+    negative.push({
+      code: "MATCH_QUALITY",
+      label: `Menor score de matching entre provedores: ${minMatchScore}/100`,
+      impact: -matchPenalty,
+    });
+    score -= matchPenalty;
+  }
+  if (input.manualMatch) {
+    positive.push({
+      code: "MANUAL_MATCH",
+      label: "Associação de eventos verificada por revisão humana",
+      impact: 0,
+    });
   }
 
   if (input.revalidated) {

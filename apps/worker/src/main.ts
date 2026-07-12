@@ -1,7 +1,7 @@
 import { Queue, Worker } from "bullmq";
 import Redis from "ioredis";
 import { loadEnv } from "@rataria/shared";
-import { MockOddsProvider, ProviderRegistry } from "@rataria/provider-sdk";
+import { MockOddsProvider, MockOddsProviderBravo, ProviderRegistry } from "@rataria/provider-sdk";
 import { disconnectPrisma, getPrisma } from "@rataria/database";
 import { logger } from "./logger";
 import { runIngestion } from "./ingestion";
@@ -27,6 +27,7 @@ async function main() {
 
   const registry = new ProviderRegistry();
   registry.register(new MockOddsProvider({ variability: env.MOCK_VARIABILITY }));
+  registry.register(new MockOddsProviderBravo());
 
   const ingestionQueue = new Queue(QUEUE_INGESTION, { connection: bullConnection });
   const detectionQueue = new Queue(QUEUE_DETECTION, { connection: bullConnection });

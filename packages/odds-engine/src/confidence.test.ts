@@ -41,6 +41,22 @@ describe("calculateConfidence", () => {
     expect(r.negativeFactors.some((f) => f.code === "EVENT_STARTED")).toBe(true);
   });
 
+  it("monotonicidade: score de matching menor nunca aumenta a confiança", () => {
+    let previous = Infinity;
+    for (const matchScore of [100, 95, 85, 70, 60]) {
+      const r = calculateConfidence({ ...base, minMatchScore: matchScore });
+      expect(r.score).toBeLessThanOrEqual(previous);
+      previous = r.score;
+    }
+  });
+
+  it("associação manual aparece como fator positivo sem inflar o score", () => {
+    const auto = calculateConfidence({ ...base, minMatchScore: 90 });
+    const manual = calculateConfidence({ ...base, minMatchScore: 90, manualMatch: true });
+    expect(manual.score).toBe(auto.score);
+    expect(manual.positiveFactors.some((f) => f.code === "MANUAL_MATCH")).toBe(true);
+  });
+
   it("score permanece no intervalo [0, 100]", () => {
     const worst = calculateConfidence({
       maxOddsAgeSeconds: 100000,

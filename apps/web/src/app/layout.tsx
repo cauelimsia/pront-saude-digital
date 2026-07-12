@@ -17,9 +17,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/" className="text-lg font-bold tracking-tight text-white">
               Rataria<span className="text-emerald-400">.surebets</span>
             </Link>
-            <nav className="text-sm text-slate-400">
+            <nav className="flex gap-4 text-sm text-slate-400">
               <Link href="/" className="hover:text-white">
                 Oportunidades
+              </Link>
+              <Link href="/matching" className="hover:text-white">
+                Revisão de matching
               </Link>
             </nav>
           </div>

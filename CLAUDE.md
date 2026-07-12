@@ -9,12 +9,13 @@ automaticamente. Nunca promete lucro garantido.**
 ## Arquitetura
 Monorepo pnpm workspaces:
 - `packages/odds-engine` — motor matemático PURO (só decimal.js; sem Nest/Prisma/Redis/HTTP).
-- `packages/provider-sdk` — contrato `OddsProvider` + `MockOddsProvider` + registry. Sem lógica de arbitragem.
+- `packages/matching` — matching de eventos PURO (normalização, score explicável, regras eliminatórias). Sem IO.
+- `packages/provider-sdk` — contrato `OddsProvider` + `MockOddsProvider`/`MockOddsProviderBravo` + registry. Sem lógica de arbitragem nem de matching.
 - `packages/database` — Prisma + PostgreSQL. Decimal para odds/dinheiro. Migrações + seed determinístico.
 - `packages/shared` — vocabulário de mercados, máquina de estados, validação de env (Zod).
-- `apps/worker` — BullMQ: ingestão → validação → normalização → snapshots → detecção → revalidação → expiração. Publica eventos no Redis pub/sub.
-- `apps/api` — NestJS: REST + SSE (`/surebets/stream`) + Swagger em `/docs`. Validação com Zod (não class-validator).
-- `apps/web` — Next.js App Router + Tailwind. Todo dado vem da API via `src/lib/api.ts`.
+- `apps/worker` — BullMQ: ingestão → validação → matching/normalização → snapshots → detecção → revalidação → expiração. Publica eventos no Redis pub/sub.
+- `apps/api` — NestJS: REST + SSE (`/surebets/stream`) + `/matching/*` + Swagger em `/docs`. Validação com Zod (não class-validator).
+- `apps/web` — Next.js App Router + Tailwind. Todo dado vem da API via `src/lib/api.ts`. Páginas: oportunidades e revisão de matching.
 
 ## Comandos oficiais
 ```
@@ -36,8 +37,11 @@ pnpm --filter @rataria/web dev      # dashboard (porta 3000)
 - Após arredondar stakes, RECALCULAR todos os cenários; pior lucro decide viabilidade.
 - Oportunidade só fica ACTIVE após revalidação; odds mais velhas que `MAX_ODDS_AGE_MS` não publicam.
 - Transições de estado só via `canTransition` (shared). EXPIRED/INVALIDATED são terminais.
-- `dedupeKey` determinística: redetecção atualiza, nunca duplica.
+- `dedupeKey` determinística com unicidade PARCIAL (só estados não-terminais): redetecção atualiza a ativa; após EXPIRED/INVALIDATED começa novo ciclo (ADR-0011).
 - Mercados incompatíveis (linhas/períodos diferentes, suspensos) nunca se comparam.
+- Odds só se combinam entre eventos com associação de matching APROVADA (auto ou manual). Eventos em PENDING_REVIEW não têm odds persistidas; rejeitados não se combinam.
+- Regras eliminatórias do matching prevalecem sobre score textual (ADR-0008). Ordem invertida nunca é silenciosa (ADR-0009).
+- Revisão de matching sem auth é proteção TEMPORÁRIA via `ENABLE_UNAUTHENTICATED_MATCH_REVIEW` (falha em produção) — REMOVER-ANTES-DA-FASE-7 (ADR-0012).
 
 ## Definição de pronto
 Código compila + typecheck + lint + testes relevantes passam + integrado ao

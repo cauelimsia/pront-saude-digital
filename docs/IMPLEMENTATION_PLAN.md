@@ -36,9 +36,10 @@ Decisões registradas em `docs/adr/`.
 - [x] Schema Prisma com Decimal, enums, uniques de dedupe, índices
 - [x] Migração reproduzível em banco vazio + seed determinístico idempotente
 - [x] Máquina de estados de oportunidade (`canTransition` em shared)
-- [ ] Modelos das fases futuras: User/Session/RefreshToken (F7), Participant/
-      EventMatch/EventMatchReview/ParticipantAlias (F4), AlertRule/AlertDelivery (F9),
-      BookmakerLimit, AuditLog, SystemSetting (F10)
+- [x] Modelos de matching (F4): ProviderEventLink, EventMatch, EventMatchReview,
+      NameAlias, AuditLog
+- [ ] Modelos das fases futuras: User/Session/RefreshToken (F7),
+      AlertRule/AlertDelivery (F9), BookmakerLimit, SystemSetting (F10)
 
 ### Fase 3 — Provedor mockado e ingestão ✅
 - [x] Contrato `OddsProvider` + schemas Zod de payload
@@ -48,9 +49,22 @@ Decisões registradas em `docs/adr/`.
 - [ ] Adaptador REST genérico demonstrativo com timeout/retry/circuit breaker
 - Evidência: teste de integração `pipeline.integration.test.ts` (4/4).
 
-### Fase 4 — Matching ⬜ (atual: vínculo direto por externalId, 1 provedor)
-- [ ] Score de correspondência com evidências, aliases, fila de revisão manual
-- [ ] Testes de nomes parecidos que NÃO devem unir
+### Fase 4 — Matching multi-provedor ✅
+- [x] Núcleo puro `packages/matching`: normalização, blocking, features, regras
+      eliminatórias, score determinístico versionado (22 testes, incl. property-based)
+- [x] Segundo provedor `MockOddsProviderBravo` com variações realistas (nomes,
+      abreviações, acentos, horário, ordem invertida, competição) + testes de contrato
+- [x] Persistência: `ProviderEventLink` (estados + eventId nullable), `EventMatch`,
+      `EventMatchReview`, `NameAlias`, `AuditLog`; migração reproduzível
+- [x] Worker: matching na ingestão, remap de seleções em ordem invertida, odds
+      retidas em PENDING_REVIEW, detecção multi-provedor (7 testes de integração)
+- [x] API `/matching/*` (reviews, event-matches, approve/reject, provider-events)
+      com proteção temporária (ADR-0012) + 6 testes de integração
+- [x] Dashboard: tela de revisão com diffs destacados + badges multi-provedor na lista
+- [x] Aliases aprovados persistidos; aprovação/rejeição idempotentes com auditoria
+- [x] Confidence score conectado à qualidade do matching (`minMatchScore`, `manualMatch`)
+- REMOVER-ANTES-DA-FASE-7: `ENABLE_UNAUTHENTICATED_MATCH_REVIEW` + `MatchReviewGuard`
+  substituídos por RBAC autenticado na Fase 7 (ADR-0012).
 
 ### Fase 5 — Motor de surebet ✅
 - [x] Detecção, alocação, arredondamento com recálculo, limites, viabilidade

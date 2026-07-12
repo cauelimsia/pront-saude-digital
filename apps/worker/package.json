@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@rataria/database": "workspace:*",
+    "@rataria/matching": "workspace:*",
     "@rataria/odds-engine": "workspace:*",
     "@rataria/provider-sdk": "workspace:*",
     "@rataria/shared": "workspace:*",

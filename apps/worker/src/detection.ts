@@ -21,8 +21,57 @@ interface BestOdd {
   outcome: string;
   bookmakerId: string;
   bookmakerKey: string;
+  providerKey: string;
   odd: Prisma.Decimal;
   collectedAt: Date;
+}
+
+interface MatchingContext {
+  providerKeys: string[];
+  minMatchScore: number;
+  manualMatch: boolean;
+  reversedProviders: string[];
+}
+
+/**
+ * Qualidade do matching dos vínculos usados na oportunidade: provedores que
+ * originaram o evento contam como score 100; vínculos AUTO/MANUAL usam o
+ * score da decisão aprovada. Eventos sem vínculo aprovado nunca chegam aqui
+ * (odds de PENDING_REVIEW não são persistidas).
+ */
+async function collectMatchingContext(
+  eventId: string,
+  providerKeys: string[],
+): Promise<MatchingContext> {
+  const prisma = getPrisma();
+  const links = await prisma.providerEventLink.findMany({
+    where: { eventId, providerKey: { in: providerKeys } },
+    include: {
+      matches: {
+        where: { decision: { in: ["AUTO_APPROVED", "MANUALLY_APPROVED"] } },
+        orderBy: { updatedAt: "desc" },
+        take: 1,
+      },
+    },
+  });
+
+  let minMatchScore = 100;
+  let manualMatch = false;
+  const reversedProviders: string[] = [];
+  for (const link of links) {
+    if (link.reversedParticipants) reversedProviders.push(link.providerKey);
+    if (link.status === "MANUALLY_LINKED") manualMatch = true;
+    if (link.status === "AUTO_LINKED" || link.status === "MANUALLY_LINKED") {
+      const score = link.matches[0]?.score ?? 100;
+      if (score < minMatchScore) minMatchScore = score;
+    }
+  }
+  return {
+    providerKeys: [...providerKeys].sort(),
+    minMatchScore,
+    manualMatch,
+    reversedProviders,
+  };
 }
 
 export async function publishLiveEvent(redis: Redis, event: SurebetLiveEvent): Promise<void> {
@@ -100,13 +149,17 @@ export async function runDetection(
     const oldestOddsAgeSec = Math.max(
       ...legs.map((l) => (now.getTime() - l.collectedAt.getTime()) / 1000),
     );
+    const distinctProviders = [...new Set(legs.map((l) => l.providerKey))];
+    const matching = await collectMatchingContext(eventId, distinctProviders);
     const confidence = calculateConfidence({
       maxOddsAgeSeconds: oldestOddsAgeSec,
-      providerCount: 1,
+      providerCount: distinctProviders.length,
       bookmakerCount: new Set(legs.map((l) => l.bookmakerId)).size,
       profitPercent: detection!.profitPercent.toNumber(),
       secondsToEventStart: (event.startsAt.getTime() - now.getTime()) / 1000,
       revalidated: plan.viable,
+      minMatchScore: matching.minMatchScore,
+      manualMatch: matching.manualMatch,
     });
 
     const dedupeKey = [
@@ -117,7 +170,7 @@ export async function runDetection(
         .sort((a, b) => a.localeCompare(b)),
     ].join("|");
 
-    const status = plan.viable ? "ACTIVE" : "UNEXECUTABLE";
+    const status: "ACTIVE" | "UNEXECUTABLE" = plan.viable ? "ACTIVE" : "UNEXECUTABLE";
     const expiresAt = new Date(now.getTime() + env.OPPORTUNITY_TTL_MS);
 
     // Conteúdo é JSON puro (strings/números); o cast satisfaz o tipo do Prisma,
@@ -144,13 +197,27 @@ export async function runDetection(
         negativeFactors: confidence.negativeFactors,
         algorithmVersion: confidence.algorithmVersion,
       },
+      matching: {
+        providerKeys: matching.providerKeys,
+        minMatchScore: matching.minMatchScore,
+        manualMatch: matching.manualMatch,
+        reversedProviders: matching.reversedProviders,
+        note: "odds só se combinam entre eventos com associação aprovada (auto ou manual)",
+      },
       disclaimer:
         "Oportunidade matemática detectada, sujeita a revalidação. Odds mudam rapidamente; não há garantia de lucro.",
     };
     const explanation = explanationData as unknown as Prisma.InputJsonValue;
 
-    const existing = await prisma.surebetOpportunity.findUnique({ where: { dedupeKey } });
-    if (existing && !canTransition(existing.status, status) && existing.status !== status) {
+    // Unicidade parcial: só considera o ciclo de vida NÃO-terminal. Uma
+    // oportunidade EXPIRED/INVALIDATED não bloqueia a redetecção (ADR-0011).
+    const existing = await prisma.surebetOpportunity.findFirst({
+      where: {
+        dedupeKey,
+        status: { in: ["DETECTED", "VALIDATING", "ACTIVE", "STALE", "UNEXECUTABLE", "MANUAL_REVIEW"] },
+      },
+    });
+    if (existing && existing.status !== status && !canTransition(existing.status, status)) {
       logger.warn(
         { opportunityId: existing.id, from: existing.status, to: status },
         "transição de estado não permitida — oportunidade mantida",
@@ -158,44 +225,40 @@ export async function runDetection(
       continue;
     }
 
+    const commonData = {
+      status,
+      inverseSum: new Prisma.Decimal(detection!.inverseSum.toFixed(12)),
+      payoutMultiplier: new Prisma.Decimal(detection!.payoutMultiplier.toFixed(12)),
+      profitPercent: new Prisma.Decimal(detection!.profitPercent.toFixed(4)),
+      referenceStake: new Prisma.Decimal(plan.requestedStake.toFixed(2)),
+      totalStaked: new Prisma.Decimal(plan.totalStaked.toFixed(2)),
+      worstProfit: new Prisma.Decimal(plan.worstProfit.toFixed(2)),
+      bestProfit: new Prisma.Decimal(plan.bestProfit.toFixed(2)),
+      profitPercentRounded: new Prisma.Decimal(plan.profitPercentAfterRounding.toFixed(4)),
+      confidenceScore: confidence.score,
+      explanation,
+      providerKeys: matching.providerKeys,
+      minMatchScore: matching.minMatchScore,
+      manualMatch: matching.manualMatch,
+      lastValidatedAt: now,
+      expiresAt,
+    };
+
     const opportunity = await prisma.$transaction(async (tx) => {
-      const opp = await tx.surebetOpportunity.upsert({
-        where: { dedupeKey },
-        update: {
-          status,
-          inverseSum: new Prisma.Decimal(detection!.inverseSum.toFixed(12)),
-          payoutMultiplier: new Prisma.Decimal(detection!.payoutMultiplier.toFixed(12)),
-          profitPercent: new Prisma.Decimal(detection!.profitPercent.toFixed(4)),
-          referenceStake: new Prisma.Decimal(plan.requestedStake.toFixed(2)),
-          totalStaked: new Prisma.Decimal(plan.totalStaked.toFixed(2)),
-          worstProfit: new Prisma.Decimal(plan.worstProfit.toFixed(2)),
-          bestProfit: new Prisma.Decimal(plan.bestProfit.toFixed(2)),
-          profitPercentRounded: new Prisma.Decimal(plan.profitPercentAfterRounding.toFixed(4)),
-          confidenceScore: confidence.score,
-          explanation,
-          lastValidatedAt: now,
-          expiresAt,
-        },
-        create: {
-          eventId,
-          marketId: market.id,
-          dedupeKey,
-          status,
-          inverseSum: new Prisma.Decimal(detection!.inverseSum.toFixed(12)),
-          payoutMultiplier: new Prisma.Decimal(detection!.payoutMultiplier.toFixed(12)),
-          profitPercent: new Prisma.Decimal(detection!.profitPercent.toFixed(4)),
-          referenceStake: new Prisma.Decimal(plan.requestedStake.toFixed(2)),
-          totalStaked: new Prisma.Decimal(plan.totalStaked.toFixed(2)),
-          worstProfit: new Prisma.Decimal(plan.worstProfit.toFixed(2)),
-          bestProfit: new Prisma.Decimal(plan.bestProfit.toFixed(2)),
-          profitPercentRounded: new Prisma.Decimal(plan.profitPercentAfterRounding.toFixed(4)),
-          confidenceScore: confidence.score,
-          explanation,
-          detectedAt: now,
-          lastValidatedAt: now,
-          expiresAt,
-        },
-      });
+      const opp = existing
+        ? await tx.surebetOpportunity.update({
+            where: { id: existing.id },
+            data: commonData,
+          })
+        : await tx.surebetOpportunity.create({
+            data: {
+              ...commonData,
+              eventId,
+              marketId: market.id,
+              dedupeKey,
+              detectedAt: now,
+            },
+          });
 
       await tx.surebetLeg.deleteMany({ where: { opportunityId: opp.id } });
       await tx.surebetLeg.createMany({
@@ -263,6 +326,7 @@ async function collectBestOdds(
     include: {
       selection: true,
       bookmaker: true,
+      provider: true,
     },
   });
 
@@ -283,6 +347,7 @@ async function collectBestOdds(
         outcome: snap.selection.outcome,
         bookmakerId: snap.bookmakerId,
         bookmakerKey: snap.bookmaker.key,
+        providerKey: snap.provider.key,
         odd: snap.odd,
         collectedAt: snap.collectedAt,
       });

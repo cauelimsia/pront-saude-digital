@@ -5,9 +5,17 @@ import { SurebetsService } from "./surebets/surebets.service";
 import { CatalogController } from "./catalog.controller";
 import { ProvidersController } from "./providers.controller";
 import { RedisService } from "./redis.service";
+import { MatchingController } from "./matching/matching.controller";
+import { MatchingService } from "./matching/matching.service";
 
 @Module({
-  controllers: [HealthController, SurebetsController, CatalogController, ProvidersController],
-  providers: [SurebetsService, RedisService],
+  controllers: [
+    HealthController,
+    SurebetsController,
+    CatalogController,
+    ProvidersController,
+    MatchingController,
+  ],
+  providers: [SurebetsService, RedisService, MatchingService],
 })
 export class AppModule {}
