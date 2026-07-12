@@ -3,15 +3,28 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import {
+  ArrowLeft,
+  BadgeCheck,
+  CircleAlert,
+  Clock,
+  Coins,
+  FileText,
+  History,
+  Percent,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
 import { getSurebet, type Surebet } from "@/lib/api";
 import {
-  confidenceTone,
   formatDateTime,
   formatMoney,
   formatPercent,
   marketLabel,
   outcomeLabel,
 } from "@/lib/format";
+import { Badge, Card, ConfidenceMeter } from "@/components/ui";
+import { SportIcon } from "@/components/sport-icon";
 import { Simulator } from "./simulator";
 
 export default function SurebetDetailPage() {
@@ -27,20 +40,26 @@ export default function SurebetDetailPage() {
 
   if (error) {
     return (
-      <div className="rounded-lg border border-rose-900/50 bg-rose-950/30 p-6 text-sm text-rose-300">
-        <p>Não foi possível carregar a oportunidade.</p>
-        <p className="mt-1 break-all text-rose-400/70">{error}</p>
-        <Link href="/" className="mt-3 inline-block text-emerald-300 hover:underline">
-          ← Voltar para a lista
-        </Link>
-      </div>
+      <Card className="border-status-critical/30 bg-status-critical/[0.04] p-6 text-sm">
+        <div className="flex items-start gap-3">
+          <CircleAlert size={20} className="mt-0.5 text-status-critical" />
+          <div>
+            <p className="font-semibold text-ink-primary">Não foi possível carregar a oportunidade</p>
+            <p className="mt-1 break-all text-ink-muted">{error}</p>
+            <Link href="/" className="mt-3 inline-block text-cat-blue hover:underline">
+              ← Voltar para a lista
+            </Link>
+          </div>
+        </div>
+      </Card>
     );
   }
 
   if (!surebet) {
     return (
-      <div className="rounded-lg border border-surface-border bg-surface-raised p-10 text-center text-slate-400">
-        Carregando detalhes...
+      <div className="space-y-3">
+        <div className="skeleton h-8 w-64 rounded-lg" />
+        <div className="skeleton h-40 rounded-xl" />
       </div>
     );
   }
@@ -51,134 +70,173 @@ export default function SurebetDetailPage() {
       negativeFactors?: Array<{ label: string }>;
     };
     detection?: { formula?: string; inverseSum?: string };
+    matching?: { providerKeys?: string[]; minMatchScore?: number; manualMatch?: boolean };
   } | null;
 
   return (
     <div className="space-y-6">
-      <div>
-        <Link href="/" className="text-sm text-slate-400 hover:text-white">
-          ← Oportunidades
-        </Link>
-        <div className="mt-2 flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-bold text-white">
-            {surebet.event.home} × {surebet.event.away}
-          </h1>
-          <span className="rounded bg-surface-raised px-2 py-1 text-xs text-slate-300">
-            {surebet.status}
+      <Link
+        href="/"
+        className="inline-flex items-center gap-1.5 text-sm text-ink-muted transition-colors hover:text-ink-secondary"
+      >
+        <ArrowLeft size={15} /> Oportunidades
+      </Link>
+
+      {/* Cabeçalho */}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-surface-overlay">
+            <SportIcon sportKey={surebet.sport.key} size={20} />
           </span>
-          <span
-            className={`rounded border px-2 py-1 text-xs ${confidenceTone(surebet.confidenceScore)}`}
-          >
-            confiança operacional {surebet.confidenceScore}/100
-          </span>
+          <div>
+            <h1 className="text-xl font-bold tracking-tight text-ink-primary sm:text-2xl">
+              {surebet.event.home} <span className="text-ink-muted">×</span> {surebet.event.away}
+            </h1>
+            <p className="mt-1 text-sm text-ink-muted">
+              {surebet.sport.name} · {surebet.competition.name} ·{" "}
+              {formatDateTime(surebet.event.startsAt)} · {marketLabel(surebet.market)}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              <Badge tone="good" icon={BadgeCheck}>
+                {surebet.status}
+              </Badge>
+              {surebet.providerCount > 1 && (
+                <Badge tone="violet" icon={Users}>
+                  {surebet.providerCount} provedores · match {surebet.minMatchScore ?? 100}
+                </Badge>
+              )}
+              {surebet.manualMatch && (
+                <Badge tone="aqua" icon={ShieldCheck}>
+                  associação verificada
+                </Badge>
+              )}
+            </div>
+          </div>
         </div>
-        <p className="mt-1 text-sm text-slate-400">
-          {surebet.sport.name} · {surebet.competition.name} ·{" "}
-          {formatDateTime(surebet.event.startsAt)} · {marketLabel(surebet.market)}
-        </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Stat label="Margem teórica" value={formatPercent(surebet.profitPercent)} accent />
-        <Stat
-          label={`Pior lucro (banca ${formatMoney(surebet.referenceStake)})`}
-          value={formatMoney(surebet.worstProfit)}
-        />
-        <Stat
-          label="Validada em"
-          value={surebet.lastValidatedAt ? formatDateTime(surebet.lastValidatedAt) : "—"}
-        />
+      {/* KPIs */}
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Card className="p-4">
+          <p className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-ink-muted">
+            <Percent size={12} /> Margem teórica
+          </p>
+          <p className="tnum mt-1.5 text-2xl font-bold text-status-good">
+            {formatPercent(surebet.profitPercent)}
+          </p>
+        </Card>
+        <Card className="p-4">
+          <p className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-ink-muted">
+            <Coins size={12} /> Pior lucro · banca {formatMoney(surebet.referenceStake)}
+          </p>
+          <p className="tnum mt-1.5 text-2xl font-bold text-ink-primary">
+            {formatMoney(surebet.worstProfit)}
+          </p>
+        </Card>
+        <Card className="p-4">
+          <p className="flex items-center gap-1.5 text-xs uppercase tracking-wide text-ink-muted">
+            <Clock size={12} /> Confiança operacional
+          </p>
+          <div className="mt-1.5">
+            <ConfidenceMeter score={surebet.confidenceScore} />
+          </div>
+        </Card>
       </div>
 
-      <section className="rounded-lg border border-surface-border">
-        <h2 className="border-b border-surface-border bg-surface-raised px-4 py-3 text-sm font-semibold text-white">
+      {/* Pernas */}
+      <Card className="overflow-hidden">
+        <h2 className="border-b border-surface-border px-4 py-3 text-sm font-semibold text-ink-primary">
           Pernas da oportunidade
         </h2>
-        <table className="w-full text-sm">
-          <thead className="text-left text-xs uppercase text-slate-500">
-            <tr>
-              <th className="px-4 py-2">Seleção</th>
-              <th className="px-4 py-2">Casa</th>
-              <th className="px-4 py-2 text-right">Odd</th>
-              <th className="px-4 py-2 text-right">Stake sugerida</th>
-              <th className="px-4 py-2 text-right">Retorno bruto</th>
-              <th className="px-4 py-2 text-right">Coletada</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-surface-border">
-            {surebet.legs.map((leg) => (
-              <tr key={leg.selection}>
-                <td className="px-4 py-3 text-white">
-                  {outcomeLabel(leg.selection)}{" "}
-                  <span className="text-xs text-slate-500">({leg.selectionName})</span>
-                </td>
-                <td className="px-4 py-3 text-slate-300">{leg.bookmaker.name}</td>
-                <td className="px-4 py-3 text-right font-mono text-emerald-300">{leg.odd}</td>
-                <td className="px-4 py-3 text-right">{formatMoney(leg.suggestedStake)}</td>
-                <td className="px-4 py-3 text-right">{formatMoney(leg.grossReturn)}</td>
-                <td className="px-4 py-3 text-right text-xs text-slate-500">
-                  {formatDateTime(leg.oddsCollectedAt)}
-                </td>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
+            <thead>
+              <tr className="border-b border-surface-border text-left text-[11px] uppercase text-ink-muted">
+                <th className="px-4 py-2.5 font-medium">Seleção</th>
+                <th className="px-4 py-2.5 font-medium">Casa</th>
+                <th className="px-4 py-2.5 text-right font-medium">Odd</th>
+                <th className="px-4 py-2.5 text-right font-medium">Stake sugerida</th>
+                <th className="px-4 py-2.5 text-right font-medium">Retorno bruto</th>
+                <th className="px-4 py-2.5 text-right font-medium">Coletada</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
+            </thead>
+            <tbody className="divide-y divide-surface-border">
+              {surebet.legs.map((leg) => (
+                <tr key={leg.selection}>
+                  <td className="px-4 py-3">
+                    <span className="font-medium text-ink-primary">
+                      {outcomeLabel(leg.selection)}
+                    </span>{" "}
+                    <span className="text-xs text-ink-muted">({leg.selectionName})</span>
+                  </td>
+                  <td className="px-4 py-3 text-ink-secondary">{leg.bookmaker.name}</td>
+                  <td className="tnum px-4 py-3 text-right font-semibold text-cat-blue">
+                    {leg.odd}
+                  </td>
+                  <td className="tnum px-4 py-3 text-right text-ink-secondary">
+                    {formatMoney(leg.suggestedStake)}
+                  </td>
+                  <td className="tnum px-4 py-3 text-right text-ink-secondary">
+                    {formatMoney(leg.grossReturn)}
+                  </td>
+                  <td className="tnum px-4 py-3 text-right text-xs text-ink-muted">
+                    {formatDateTime(leg.oddsCollectedAt)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Simulator opportunityId={surebet.id} />
 
-        <section className="space-y-4">
-          <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
-            <h3 className="text-sm font-semibold text-white">Explicação auditável</h3>
-            <p className="mt-2 font-mono text-xs text-slate-400">
-              {explanation?.detection?.formula ?? "inverseSum = Σ(1/odd_i) < 1"} · inverseSum ={" "}
-              {Number(surebet.inverseSum).toFixed(6)}
+        <div className="space-y-4">
+          <Card className="p-4">
+            <h3 className="flex items-center gap-1.5 text-sm font-semibold text-ink-primary">
+              <FileText size={15} className="text-ink-muted" /> Explicação auditável
+            </h3>
+            <p className="tnum mt-2 rounded-lg bg-surface-overlay px-3 py-2 font-mono text-xs text-ink-secondary">
+              {explanation?.detection?.formula ?? "inverseSum = Σ(1/odd_i) < 1"}
+              <br />
+              inverseSum = {Number(surebet.inverseSum).toFixed(6)}
             </p>
-            {explanation?.confidence?.positiveFactors?.map((f) => (
-              <p key={f.label} className="mt-1 text-xs text-emerald-400/80">
-                + {f.label}
-              </p>
-            ))}
-            {explanation?.confidence?.negativeFactors?.map((f) => (
-              <p key={f.label} className="mt-1 text-xs text-amber-400/80">
-                − {f.label}
-              </p>
-            ))}
-          </div>
+            <div className="mt-3 space-y-1">
+              {explanation?.confidence?.positiveFactors?.map((f) => (
+                <p key={f.label} className="text-xs text-status-good/90">
+                  + {f.label}
+                </p>
+              ))}
+              {explanation?.confidence?.negativeFactors?.map((f) => (
+                <p key={f.label} className="text-xs text-status-warning/90">
+                  − {f.label}
+                </p>
+              ))}
+            </div>
+          </Card>
 
-          <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
-            <h3 className="text-sm font-semibold text-white">Revalidações recentes</h3>
-            <ul className="mt-2 space-y-1 text-xs text-slate-400">
+          <Card className="p-4">
+            <h3 className="flex items-center gap-1.5 text-sm font-semibold text-ink-primary">
+              <History size={15} className="text-ink-muted" /> Revalidações recentes
+            </h3>
+            <ul className="mt-2 space-y-1.5 text-xs">
               {surebet.validations.map((v) => (
-                <li key={v.at}>
-                  <span
-                    className={v.result === "CONFIRMED" ? "text-emerald-400" : "text-amber-400"}
-                  >
-                    {v.result}
-                  </span>{" "}
-                  · {formatDateTime(v.at)}
+                <li key={v.at} className="flex items-center justify-between">
+                  <Badge tone={v.result === "CONFIRMED" ? "good" : "warning"}>{v.result}</Badge>
+                  <span className="tnum text-ink-muted">{formatDateTime(v.at)}</span>
                 </li>
               ))}
-              {surebet.validations.length === 0 && <li>Nenhuma revalidação registrada.</li>}
+              {surebet.validations.length === 0 && (
+                <li className="text-ink-muted">Nenhuma revalidação registrada.</li>
+              )}
             </ul>
-            <p className="mt-3 text-xs text-slate-600">
+            <p className="mt-3 text-xs text-ink-muted">
               Expira em {formatDateTime(surebet.expiresAt)} sem reconfirmação.
             </p>
-          </div>
-        </section>
+          </Card>
+        </div>
       </div>
-    </div>
-  );
-}
-
-function Stat({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
-  return (
-    <div className="rounded-lg border border-surface-border bg-surface-raised p-4">
-      <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={`mt-1 text-xl font-bold ${accent ? "text-emerald-400" : "text-white"}`}>
-        {value}
-      </p>
     </div>
   );
 }

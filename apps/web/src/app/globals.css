@@ -2,6 +2,45 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  color-scheme: dark;
+}
+
 body {
-  @apply bg-surface text-slate-200 antialiased;
+  @apply bg-plane text-ink-secondary antialiased;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+/* Números tabulares em colunas de dados */
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Scrollbar discreta */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #242c3a transparent;
+}
+*::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #242c3a;
+  border-radius: 4px;
+}
+
+/* Skeleton shimmer */
+.skeleton {
+  @apply relative overflow-hidden bg-surface-raised;
+}
+.skeleton::after {
+  @apply absolute inset-0 -translate-x-full animate-shimmer;
+  content: "";
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.04),
+    transparent
+  );
 }

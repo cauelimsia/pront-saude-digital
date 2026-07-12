@@ -46,9 +46,47 @@ export function formatDateTime(iso: string): string {
   });
 }
 
-export function confidenceTone(score: number): string {
-  if (score >= 80) return "bg-emerald-500/15 text-emerald-300 border-emerald-700/40";
-  if (score >= 60) return "bg-sky-500/15 text-sky-300 border-sky-700/40";
-  if (score >= 40) return "bg-amber-500/15 text-amber-300 border-amber-700/40";
-  return "bg-rose-500/15 text-rose-300 border-rose-700/40";
+export function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/** Idade legível: 8s, 2min, 1h12. */
+export function formatAge(seconds: number): string {
+  if (seconds < 60) return `${Math.round(seconds)}s`;
+  if (seconds < 3600) return `${Math.round(seconds / 60)}min`;
+  const h = Math.floor(seconds / 3600);
+  const m = Math.round((seconds % 3600) / 60);
+  return `${h}h${m.toString().padStart(2, "0")}`;
+}
+
+export type ConfidenceBand = "high" | "moderate" | "elevated" | "hidden";
+
+export function confidenceBand(score: number): ConfidenceBand {
+  if (score >= 80) return "high";
+  if (score >= 60) return "moderate";
+  if (score >= 40) return "elevated";
+  return "hidden";
+}
+
+export function confidenceLabel(score: number): string {
+  const map: Record<ConfidenceBand, string> = {
+    high: "Alta",
+    moderate: "Moderada",
+    elevated: "Risco elevado",
+    hidden: "Baixa",
+  };
+  return map[confidenceBand(score)];
+}
+
+/** Ícone lucide por chave de esporte. */
+export function sportIcon(sportKey: string): string {
+  const map: Record<string, string> = {
+    football: "Goal",
+    tennis: "Volleyball",
+    basketball: "Dribbble",
+  };
+  return map[sportKey] ?? "Trophy";
 }

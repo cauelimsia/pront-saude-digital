@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { Calculator, CircleCheck, TriangleAlert } from "lucide-react";
 import { simulate, type SimulationResult } from "@/lib/api";
 import { formatMoney, outcomeLabel } from "@/lib/format";
+import { Card } from "@/components/ui";
 
 /**
  * Simulador de banca: envia o valor à API, que recalcula a distribuição com o
@@ -27,69 +29,89 @@ export function Simulator({ opportunityId }: { opportunityId: string }) {
   }
 
   return (
-    <section className="rounded-lg border border-surface-border bg-surface-raised p-4">
-      <h3 className="text-sm font-semibold text-white">Simulador de banca</h3>
+    <Card className="p-4">
+      <h3 className="flex items-center gap-1.5 text-sm font-semibold text-ink-primary">
+        <Calculator size={15} className="text-ink-muted" /> Simulador de banca
+      </h3>
       <div className="mt-3 flex gap-2">
-        <input
-          type="number"
-          min="1"
-          step="any"
-          value={stake}
-          onChange={(e) => setStake(e.target.value)}
-          aria-label="Banca total"
-          className="w-40 rounded border border-surface-border bg-surface px-3 py-2 text-sm text-white outline-none focus:border-emerald-600"
-        />
+        <div className="relative flex-1">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-ink-muted">
+            R$
+          </span>
+          <input
+            type="number"
+            min="1"
+            step="any"
+            value={stake}
+            onChange={(e) => setStake(e.target.value)}
+            aria-label="Banca total"
+            className="tnum w-full rounded-lg border border-surface-border bg-surface-overlay py-2 pl-9 pr-3 text-sm text-ink-primary outline-none transition-colors focus:border-cat-blue"
+          />
+        </div>
         <button
           onClick={() => void run()}
           disabled={busy || !stake || Number(stake) <= 0}
-          className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
+          className="rounded-lg bg-cat-blue px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-soft disabled:opacity-50"
         >
-          {busy ? "Calculando..." : "Simular distribuição"}
+          {busy ? "Calculando…" : "Simular"}
         </button>
       </div>
 
-      {error && <p className="mt-3 break-all text-xs text-rose-400">{error}</p>}
+      {error && <p className="mt-3 break-all text-xs text-status-critical">{error}</p>}
 
       {result && (
         <div className="mt-4 space-y-3 text-sm">
           <div
-            className={`rounded px-3 py-2 text-xs ${
+            className={`flex items-start gap-2 rounded-lg px-3 py-2 text-xs ${
               result.viable
-                ? "bg-emerald-950/50 text-emerald-300"
-                : "bg-amber-950/50 text-amber-300"
+                ? "bg-status-good/10 text-status-good"
+                : "bg-status-warning/10 text-status-warning"
             }`}
           >
-            {result.viable
-              ? `Viável — pior lucro ${formatMoney(result.worstProfit)} (${Number(result.profitPercentAfterRounding).toFixed(2)}% da banca alocada)`
-              : `Inviável após arredondamento/limites (${result.viability})`}
+            {result.viable ? (
+              <CircleCheck size={15} className="mt-0.5 shrink-0" />
+            ) : (
+              <TriangleAlert size={15} className="mt-0.5 shrink-0" />
+            )}
+            <span>
+              {result.viable
+                ? `Viável — pior lucro ${formatMoney(result.worstProfit)} (${Number(result.profitPercentAfterRounding).toFixed(2)}% da banca alocada)`
+                : `Inviável após arredondamento/limites (${result.viability})`}
+            </span>
           </div>
-          <table className="w-full text-xs">
-            <thead className="text-left uppercase text-slate-500">
-              <tr>
-                <th className="py-1">Seleção</th>
-                <th className="py-1">Casa</th>
-                <th className="py-1 text-right">Stake</th>
-                <th className="py-1 text-right">Retorno</th>
-                <th className="py-1 text-right">Lucro se vencer</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-surface-border">
-              {result.legs.map((leg) => (
-                <tr key={leg.selectionKey}>
-                  <td className="py-2 text-white">{outcomeLabel(leg.selectionKey)}</td>
-                  <td className="py-2 text-slate-400">{leg.bookmakerKey}</td>
-                  <td className="py-2 text-right">{formatMoney(leg.roundedStake)}</td>
-                  <td className="py-2 text-right">{formatMoney(leg.grossReturn)}</td>
-                  <td className="py-2 text-right text-emerald-300">
-                    {formatMoney(leg.profitIfWins)}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left uppercase text-ink-muted">
+                  <th className="py-1.5 font-medium">Seleção</th>
+                  <th className="py-1.5 font-medium">Casa</th>
+                  <th className="py-1.5 text-right font-medium">Stake</th>
+                  <th className="py-1.5 text-right font-medium">Retorno</th>
+                  <th className="py-1.5 text-right font-medium">Lucro</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="text-xs text-slate-600">{result.disclaimer}</p>
+              </thead>
+              <tbody className="divide-y divide-surface-border">
+                {result.legs.map((leg) => (
+                  <tr key={leg.selectionKey}>
+                    <td className="py-2 text-ink-primary">{outcomeLabel(leg.selectionKey)}</td>
+                    <td className="py-2 text-ink-muted">{leg.bookmakerKey}</td>
+                    <td className="tnum py-2 text-right text-ink-secondary">
+                      {formatMoney(leg.roundedStake)}
+                    </td>
+                    <td className="tnum py-2 text-right text-ink-secondary">
+                      {formatMoney(leg.grossReturn)}
+                    </td>
+                    <td className="tnum py-2 text-right text-status-good">
+                      {formatMoney(leg.profitIfWins)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-ink-muted">{result.disclaimer}</p>
         </div>
       )}
-    </section>
+    </Card>
   );
 }

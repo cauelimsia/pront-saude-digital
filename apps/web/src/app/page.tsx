@@ -2,14 +2,37 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Activity,
+  ArrowUpRight,
+  Building2,
+  ChevronRight,
+  Gauge,
+  Layers,
+  Percent,
+  ServerCog,
+  Sparkles,
+  Users,
+} from "lucide-react";
 import { API_URL, listSurebets, type SurebetList } from "@/lib/api";
 import {
-  confidenceTone,
+  formatAge,
   formatDateTime,
   formatMoney,
   formatPercent,
   marketLabel,
 } from "@/lib/format";
+import {
+  Badge,
+  Card,
+  ConfidenceMeter,
+  EmptyState,
+  ErrorState,
+  LiveIndicator,
+  SkeletonRows,
+  StatTile,
+} from "@/components/ui";
+import { SportIcon } from "@/components/sport-icon";
 
 type ConnectionState = "connecting" | "live" | "reconnecting";
 
@@ -35,12 +58,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     void refresh();
-
-    // Tempo real: SSE alimentado pelo worker via Redis pub/sub.
-    // Em qualquer evento de oportunidade, recarrega a lista (payload pequeno).
     const source = new EventSource(`${API_URL}/surebets/stream`);
     source.onopen = () => setConnection("live");
-    source.onerror = () => setConnection("reconnecting"); // EventSource reconecta sozinho
+    source.onerror = () => setConnection("reconnecting");
     source.onmessage = (message) => {
       setLastEventAt(new Date().toLocaleTimeString("pt-BR"));
       try {
@@ -51,8 +71,6 @@ export default function DashboardPage() {
       if (refreshTimer.current) clearTimeout(refreshTimer.current);
       refreshTimer.current = setTimeout(() => void refresh(), 300);
     };
-
-    // Rede de segurança para dados desatualizados sem eventos.
     const poll = setInterval(() => void refresh(), 30000);
     return () => {
       source.close();
@@ -61,143 +79,169 @@ export default function DashboardPage() {
     };
   }, [refresh]);
 
+  const items = data?.items ?? [];
+  const bestMargin = items.reduce((m, i) => Math.max(m, Number(i.profitPercent)), 0);
+  const avgConfidence =
+    items.length > 0
+      ? Math.round(items.reduce((s, i) => s + i.confidenceScore, 0) / items.length)
+      : 0;
+  const providerSet = new Set(items.flatMap((i) => i.providerKeys));
+  const multiCount = items.filter((i) => i.providerCount > 1).length;
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-8">
+      {/* Cabeçalho */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Oportunidades ativas</h1>
-          <p className="text-sm text-slate-400">
-            Oportunidades matemáticas detectadas e revalidadas — sujeitas a mudanças de odds.
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-cat-blue">
+            <Sparkles size={13} /> Painel de arbitragem
+          </div>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink-primary sm:text-3xl">
+            Oportunidades ativas
+          </h1>
+          <p className="mt-1 text-sm text-ink-muted">
+            Detectadas e revalidadas pelo motor matemático — sujeitas a mudanças de odds.
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs">
-          <span
-            className={`inline-block h-2 w-2 rounded-full ${
-              connection === "live"
-                ? "bg-emerald-400"
-                : connection === "reconnecting"
-                  ? "bg-amber-400 animate-pulse"
-                  : "bg-slate-500"
-            }`}
-          />
-          <span className="text-slate-400">
-            {connection === "live"
-              ? `Tempo real conectado${lastEventAt ? ` · último evento ${lastEventAt}` : ""}`
-              : connection === "reconnecting"
-                ? "Reconectando ao tempo real..."
-                : "Conectando..."}
-          </span>
-        </div>
+        <LiveIndicator state={connection} lastEventAt={lastEventAt} />
       </div>
 
+      {/* KPIs */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile
+          label="Oportunidades ativas"
+          value={loading ? "—" : String(items.length)}
+          icon={Activity}
+          accent="brand"
+          hint={multiCount > 0 ? `${multiCount} multi-provedor` : undefined}
+        />
+        <StatTile
+          label="Melhor margem"
+          value={loading ? "—" : formatPercent(bestMargin)}
+          icon={Percent}
+          accent="good"
+        />
+        <StatTile
+          label="Confiança média"
+          value={loading ? "—" : `${avgConfidence}`}
+          icon={Gauge}
+          hint="operacional (0–100)"
+        />
+        <StatTile
+          label="Provedores"
+          value={loading ? "—" : String(providerSet.size || 0)}
+          icon={ServerCog}
+          hint="fontes confirmando odds"
+        />
+      </div>
+
+      {/* Conteúdo */}
       {loading && (
-        <div className="rounded-lg border border-surface-border bg-surface-raised p-10 text-center text-slate-400">
-          Carregando oportunidades...
-        </div>
+        <Card className="p-4">
+          <SkeletonRows rows={4} />
+        </Card>
       )}
 
-      {!loading && error && (
-        <div className="rounded-lg border border-rose-900/50 bg-rose-950/30 p-6 text-sm text-rose-300">
-          <p className="font-semibold">Falha ao carregar dados da API.</p>
-          <p className="mt-1 break-all text-rose-400/80">{error}</p>
-          <button
-            onClick={() => void refresh()}
-            className="mt-3 rounded bg-rose-900/50 px-3 py-1.5 text-rose-200 hover:bg-rose-900"
-          >
-            Tentar novamente
-          </button>
-        </div>
+      {!loading && error && <ErrorState message={error} onRetry={() => void refresh()} icon={ServerCog} />}
+
+      {!loading && !error && items.length === 0 && (
+        <EmptyState
+          icon={Layers}
+          title="Nenhuma oportunidade ativa agora"
+          description="O worker segue coletando odds dos provedores — novas oportunidades aparecem aqui automaticamente, em tempo real."
+        />
       )}
 
-      {!loading && !error && data && data.items.length === 0 && (
-        <div className="rounded-lg border border-surface-border bg-surface-raised p-10 text-center">
-          <p className="text-slate-300">Nenhuma oportunidade ativa neste momento.</p>
-          <p className="mt-1 text-sm text-slate-500">
-            O worker segue coletando odds — novas oportunidades aparecem aqui automaticamente.
-          </p>
-        </div>
-      )}
-
-      {!loading && !error && data && data.items.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-surface-border">
-          <table className="w-full min-w-[900px] text-sm">
-            <thead className="bg-surface-raised text-left text-xs uppercase tracking-wide text-slate-400">
-              <tr>
-                <th className="px-4 py-3">Evento</th>
-                <th className="px-4 py-3">Mercado</th>
-                <th className="px-4 py-3 text-right">Margem</th>
-                <th className="px-4 py-3 text-right">Pior lucro*</th>
-                <th className="px-4 py-3 text-center">Confiança</th>
-                <th className="px-4 py-3 text-right">Idade odd</th>
-                <th className="px-4 py-3">Casas · provedores</th>
-                <th className="px-4 py-3" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-surface-border">
-              {data.items.map((item) => (
-                <tr key={item.id} className="hover:bg-surface-raised/60">
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-white">
-                      {item.event.home} × {item.event.away}
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      {item.sport.name} · {item.competition.name} ·{" "}
-                      {formatDateTime(item.event.startsAt)}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-slate-300">{marketLabel(item.market)}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-emerald-400">
-                    {formatPercent(item.profitPercent)}
-                  </td>
-                  <td className="px-4 py-3 text-right text-emerald-300">
-                    {formatMoney(item.worstProfit)}
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <span
-                      className={`inline-block rounded border px-2 py-0.5 text-xs ${confidenceTone(item.confidenceScore)}`}
-                    >
-                      {item.confidenceScore}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right text-slate-400">
-                    {item.oddsAgeSeconds}s
-                  </td>
-                  <td className="px-4 py-3 text-xs text-slate-400">
-                    <div>{[...new Set(item.legs.map((l) => l.bookmaker.name))].join(" + ")}</div>
-                    <div className="mt-1 flex flex-wrap items-center gap-1">
-                      {item.providerCount > 1 && (
-                        <span className="rounded bg-indigo-500/15 px-1.5 py-0.5 text-[10px] text-indigo-300">
-                          {item.providerCount} provedores · match {item.minMatchScore ?? 100}
-                        </span>
-                      )}
-                      {item.manualMatch && (
-                        <span
-                          className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] text-emerald-300"
-                          title="Associação verificada por revisão humana"
-                        >
-                          match manual
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/surebets/${item.id}`}
-                      className="rounded bg-emerald-600/20 px-3 py-1.5 text-xs font-medium text-emerald-300 hover:bg-emerald-600/30"
-                    >
-                      Detalhes
-                    </Link>
-                  </td>
+      {!loading && !error && items.length > 0 && (
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[920px] text-sm">
+              <thead>
+                <tr className="border-b border-surface-border text-left text-[11px] uppercase tracking-wide text-ink-muted">
+                  <th className="px-4 py-3 font-medium">Evento</th>
+                  <th className="px-4 py-3 font-medium">Mercado</th>
+                  <th className="px-4 py-3 text-right font-medium">Margem</th>
+                  <th className="px-4 py-3 text-right font-medium">Pior lucro*</th>
+                  <th className="px-4 py-3 font-medium">Confiança</th>
+                  <th className="px-4 py-3 font-medium">Casas · provedores</th>
+                  <th className="px-4 py-3 text-right font-medium">Idade</th>
+                  <th className="px-4 py-3" />
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-surface-border">
+                {items.map((item) => (
+                  <tr key={item.id} className="group transition-colors hover:bg-surface-hover/60">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-surface-overlay">
+                          <SportIcon sportKey={item.sport.key} />
+                        </span>
+                        <div>
+                          <div className="font-medium text-ink-primary">
+                            {item.event.home} <span className="text-ink-muted">×</span>{" "}
+                            {item.event.away}
+                          </div>
+                          <div className="text-xs text-ink-muted">
+                            {item.competition.name} · {formatDateTime(item.event.startsAt)}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-ink-secondary">{marketLabel(item.market)}</td>
+                    <td className="px-4 py-3 text-right">
+                      <span className="tnum inline-flex items-center gap-0.5 font-semibold text-status-good">
+                        <ArrowUpRight size={14} />
+                        {formatPercent(item.profitPercent)}
+                      </span>
+                    </td>
+                    <td className="tnum px-4 py-3 text-right text-ink-secondary">
+                      {formatMoney(item.worstProfit)}
+                    </td>
+                    <td className="px-4 py-3">
+                      <ConfidenceMeter score={item.confidenceScore} compact />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex flex-col gap-1">
+                        <span className="inline-flex items-center gap-1 text-xs text-ink-secondary">
+                          <Building2 size={12} className="text-ink-muted" />
+                          {[...new Set(item.legs.map((l) => l.bookmaker.name))].join(" + ")}
+                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {item.providerCount > 1 && (
+                            <Badge tone="violet" icon={Users} title="Odds combinadas entre provedores">
+                              {item.providerCount} provedores · match {item.minMatchScore ?? 100}
+                            </Badge>
+                          )}
+                          {item.manualMatch && (
+                            <Badge tone="aqua" title="Associação verificada por revisão humana">
+                              match manual
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="tnum px-4 py-3 text-right text-ink-muted">
+                      {formatAge(item.oddsAgeSeconds)}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <Link
+                        href={`/surebets/${item.id}`}
+                        className="inline-flex items-center gap-0.5 rounded-lg bg-surface-overlay px-2.5 py-1.5 text-xs font-medium text-ink-secondary transition-colors group-hover:bg-cat-blue/15 group-hover:text-cat-blue"
+                      >
+                        Detalhes <ChevronRight size={14} />
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
 
-      <p className="text-xs text-slate-600">
-        * Pior lucro para a banca de referência após arredondamento das stakes, recalculado a
-        cada revalidação. Retornos estimados, sujeitos a revalidação.
+      <p className="text-xs text-ink-muted">
+        * Pior lucro para a banca de referência após arredondamento das stakes, recalculado a cada
+        revalidação. Retornos estimados, sujeitos a revalidação.
       </p>
     </div>
   );

@@ -1,14 +1,21 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { CheckCircle2, GitCompareArrows, Inbox, ServerCog } from "lucide-react";
 import {
   decideReview,
   listReviews,
   type MatchReview,
   type ReviewList,
 } from "@/lib/api";
-import { formatDateTime } from "@/lib/format";
+import { Badge, Card, EmptyState, ErrorState, SkeletonRows } from "@/components/ui";
 import { ReviewCard } from "./review-card";
+
+const TABS = [
+  { key: "PENDING", label: "Pendentes" },
+  { key: "APPROVED", label: "Aprovadas" },
+  { key: "REJECTED", label: "Rejeitadas" },
+];
 
 export default function MatchingReviewPage() {
   const [data, setData] = useState<ReviewList | null>(null);
@@ -54,63 +61,60 @@ export default function MatchingReviewPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-white">Revisão de correspondências</h1>
-          <p className="text-sm text-slate-400">
-            Associações ambíguas entre provedores que exigem verificação humana. A decisão de
-            score vem da API — a interface apenas exibe a explicação.
+          <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-cat-violet">
+            <GitCompareArrows size={13} /> Correspondência de eventos
+          </div>
+          <h1 className="mt-1 text-2xl font-bold tracking-tight text-ink-primary sm:text-3xl">
+            Revisão de matching
+          </h1>
+          <p className="mt-1 max-w-2xl text-sm text-ink-muted">
+            Associações ambíguas entre provedores que exigem verificação humana. O score é
+            calculado pela API — a interface apenas exibe a explicação.
           </p>
         </div>
-        <div className="flex gap-1 text-xs">
-          {["PENDING", "APPROVED", "REJECTED"].map((s) => (
+        <div className="flex gap-1 rounded-lg border border-surface-border bg-surface p-1">
+          {TABS.map((t) => (
             <button
-              key={s}
-              onClick={() => setStatus(s)}
-              className={`rounded px-3 py-1.5 ${
-                status === s
-                  ? "bg-emerald-600/30 text-emerald-200"
-                  : "bg-surface-raised text-slate-400 hover:text-white"
+              key={t.key}
+              onClick={() => setStatus(t.key)}
+              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                status === t.key
+                  ? "bg-surface-overlay text-ink-primary"
+                  : "text-ink-muted hover:text-ink-secondary"
               }`}
             >
-              {s}
+              {t.label}
             </button>
           ))}
         </div>
       </div>
 
       {feedback && (
-        <div className="rounded border border-emerald-800/50 bg-emerald-950/40 px-4 py-2 text-sm text-emerald-300">
-          {feedback}
-        </div>
+        <Card className="border-status-good/25 bg-status-good/[0.06] p-3">
+          <p className="flex items-center gap-2 text-sm text-status-good">
+            <CheckCircle2 size={16} /> {feedback}
+          </p>
+        </Card>
       )}
 
       {loading && (
-        <div className="rounded-lg border border-surface-border bg-surface-raised p-10 text-center text-slate-400">
-          Carregando revisões...
-        </div>
+        <Card className="p-4">
+          <SkeletonRows rows={2} />
+        </Card>
       )}
 
       {!loading && error && (
-        <div className="rounded-lg border border-rose-900/50 bg-rose-950/30 p-6 text-sm text-rose-300">
-          <p className="break-all">{error}</p>
-          <button
-            onClick={() => void refresh()}
-            className="mt-3 rounded bg-rose-900/50 px-3 py-1.5 text-rose-200 hover:bg-rose-900"
-          >
-            Tentar novamente
-          </button>
-        </div>
+        <ErrorState message={error} onRetry={() => void refresh()} icon={ServerCog} />
       )}
 
       {!loading && !error && data && data.items.length === 0 && (
-        <div className="rounded-lg border border-surface-border bg-surface-raised p-10 text-center">
-          <p className="text-slate-300">Nenhuma revisão {status.toLowerCase()}.</p>
-          <p className="mt-1 text-sm text-slate-500">
-            Correspondências de alta confiança são aprovadas automaticamente; incompatíveis são
-            rejeitadas.
-          </p>
-        </div>
+        <EmptyState
+          icon={Inbox}
+          title={`Nenhuma revisão ${status === "PENDING" ? "pendente" : status === "APPROVED" ? "aprovada" : "rejeitada"}`}
+          description="Correspondências de alta confiança são aprovadas automaticamente; as incompatíveis são rejeitadas pelo algoritmo."
+        />
       )}
 
       {!loading && !error && data && data.items.length > 0 && (
@@ -126,10 +130,10 @@ export default function MatchingReviewPage() {
         </div>
       )}
 
-      <p className="text-xs text-slate-600">
-        Última atualização: {formatDateTime(new Date().toISOString())}. As ações de aprovar/rejeitar
-        usam proteção temporária (Fase 4) e serão substituídas por autenticação com RBAC.
-      </p>
+      <div className="flex items-center gap-2 text-xs text-ink-muted">
+        <Badge tone="warning">proteção temporária</Badge>
+        As ações de aprovar/rejeitar serão substituídas por autenticação com RBAC (Fase 7).
+      </div>
     </div>
   );
 }
