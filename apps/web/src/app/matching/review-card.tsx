@@ -32,10 +32,12 @@ function DiffRow({ label, left, right }: { label: string; left: string; right: s
 export function ReviewCard({
   review,
   busy,
+  canDecide,
   onDecide,
 }: {
   review: MatchReview;
   busy: boolean;
+  canDecide: boolean;
   onDecide: (review: MatchReview, action: "approve" | "reject") => void;
 }) {
   const [confirming, setConfirming] = useState<"approve" | "reject" | null>(null);
@@ -138,6 +140,10 @@ export function ReviewCard({
             por {review.decidedBy ?? "—"}
             {review.decidedAt ? ` · ${formatDateTime(review.decidedAt)}` : ""}
             {review.note ? ` · "${review.note}"` : ""}
+          </div>
+        ) : !canDecide ? (
+          <div className="mt-4 border-t border-surface-border pt-3 text-xs text-ink-muted">
+            Aguardando decisão de um Analista ou Admin.
           </div>
         ) : (
           <div className="mt-4 flex items-center gap-2 border-t border-surface-border pt-3">

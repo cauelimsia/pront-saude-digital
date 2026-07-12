@@ -6,33 +6,33 @@ const base = {
   REDIS_URL: "redis://localhost:6379",
 };
 
+const strongSecret = "a-very-strong-production-secret-key-0123456789";
+
 describe("loadEnv", () => {
-  it("aplica defaults seguros", () => {
+  it("aplica defaults seguros em desenvolvimento", () => {
     const env = loadEnv(base);
-    expect(env.ENABLE_UNAUTHENTICATED_MATCH_REVIEW).toBe(false);
     expect(env.NODE_ENV).toBe("development");
     expect(env.API_PORT).toBe(3001);
+    expect(env.JWT_ACCESS_TTL).toBe("15m");
+    expect(env.REFRESH_TTL_DAYS).toBe(7);
+    // default dev do JWT_SECRET permitido fora de produção
+    expect(env.JWT_SECRET).toContain("dev-only");
   });
 
-  it("permite revisão sem auth em desenvolvimento", () => {
-    const env = loadEnv({ ...base, ENABLE_UNAUTHENTICATED_MATCH_REVIEW: "true" });
-    expect(env.ENABLE_UNAUTHENTICATED_MATCH_REVIEW).toBe(true);
+  it("FALHA em produção sem JWT_SECRET forte (usando o default dev)", () => {
+    expect(() => loadEnv({ ...base, NODE_ENV: "production" })).toThrow(/JWT_SECRET/);
   });
 
-  it("FALHA em produção se a revisão sem autenticação estiver habilitada", () => {
+  it("FALHA em produção com JWT_SECRET curto", () => {
     expect(() =>
-      loadEnv({
-        ...base,
-        NODE_ENV: "production",
-        ENABLE_UNAUTHENTICATED_MATCH_REVIEW: "true",
-      }),
-    ).toThrow(/produção/);
+      loadEnv({ ...base, NODE_ENV: "production", JWT_SECRET: "curto" }),
+    ).toThrow(/JWT_SECRET/);
   });
 
-  it("aceita produção com a proteção desabilitada", () => {
-    const env = loadEnv({ ...base, NODE_ENV: "production" });
+  it("aceita produção com JWT_SECRET forte", () => {
+    const env = loadEnv({ ...base, NODE_ENV: "production", JWT_SECRET: strongSecret });
     expect(env.NODE_ENV).toBe("production");
-    expect(env.ENABLE_UNAUTHENTICATED_MATCH_REVIEW).toBe(false);
+    expect(env.JWT_SECRET).toBe(strongSecret);
   });
 
   it("rejeita configuração inválida", () => {

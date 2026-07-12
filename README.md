@@ -37,8 +37,8 @@ flowchart LR
 | `packages/database` | Prisma + migrações + seed |
 | `packages/shared` | Mercados canônicos, máquina de estados, validação de env |
 | `apps/worker` | Filas BullMQ: ingestão → detecção → revalidação → expiração |
-| `apps/api` | REST + SSE + OpenAPI (`/docs`) |
-| `apps/web` | Dashboard (lista, detalhe, simulador de banca) |
+| `apps/api` | REST + SSE + OpenAPI (`/docs`) + autenticação/RBAC |
+| `apps/web` | Dashboard (login, lista, detalhe, simulador, revisão de matching) |
 
 ## Pré-requisitos
 
@@ -137,8 +137,28 @@ produção) até a autenticação da Fase 7.
 - Decisões arquiteturais: `docs/adr/`
 - Regras de engenharia: `.claude/rules/`
 
+## Autenticação e papéis (Fase 7)
+
+- Cadastro/login em `/login` e `/register`. Argon2id, JWT curto (15m) e refresh
+  token rotativo (hash persistido, detecção de reuso). A sessão renova sozinha.
+- Papéis: **USER** (leitura), **ANALYST**/**ADMIN** (decidem revisões de
+  matching). O gate vale no backend (RBAC) e no frontend (botões).
+- Para criar um admin local: cadastre um usuário e promova-o
+  (`UPDATE "User" SET role='ADMIN' WHERE email='...';`), ou defina
+  `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD_HASH` no seed.
+- `JWT_SECRET` é obrigatório e forte (≥ 32 chars) em produção — a API falha na
+  inicialização caso contrário.
+
+## Segurança
+
+Argon2id; JWT HS256 curto com `jti`; refresh opaco com apenas o hash
+persistido; rate limiting (Helmet + throttler); CORS restrito ao `WEB_ORIGIN`;
+validação Zod em toda entrada; segredos só via env validado. Detalhes em
+`.claude/rules/security.md` e `docs/adr/0013-autenticacao-e-rbac.md`.
+
 ## Limitações atuais e roadmap
 
-- Um único provedor (mock); matching probabilístico multi-provedor é a Fase 4.
-- Sem autenticação ainda (Fase 7) — não exponha a API publicamente.
-- Alertas (Fase 9) e hardening/observabilidade completa (Fase 10) pendentes.
+- Refresh token em `localStorage` com auto-refresh; produção deve migrar para
+  cookie HttpOnly atrás de mesma origem/reverse proxy (ADR-0013).
+- Alertas (Fase 9) e hardening/observabilidade completa — /metrics, retenção de
+  snapshots, e2e no CI (Fase 10) — pendentes.

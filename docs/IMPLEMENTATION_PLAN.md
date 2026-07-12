@@ -76,17 +76,24 @@ Decisões registradas em `docs/adr/`.
 - [x] Pipeline com dedupeKey, revalidação antes de ACTIVE, invalidação, expiração
 - [x] Idempotência (redetecção atualiza; jobs determinísticos)
 
-### Fase 7 — API e autenticação ◐
+### Fase 7 — API e autenticação ✅
 - [x] Endpoints: health/ready, sports, events, events/:id/odds, surebets (+filtros,
       paginação), surebets/:id, simulate, providers, providers/status, SSE, Swagger
-- [ ] Auth (Argon2id, JWT + refresh rotativo), RBAC, rate limiting, Helmet
-- [ ] /metrics, versionamento de API
+- [x] Auth (Argon2id, JWT curto com jti, refresh rotativo com hash + detecção de
+      reuso), RBAC USER/ANALYST/ADMIN, rate limiting (throttler), Helmet — ADR-0013
+- [x] Endpoints /auth/register|login|refresh|logout + /me; revisão de matching
+      exige ANALYST/ADMIN (proteção temporária da Fase 4 REMOVIDA)
+- [x] Login/cadastro no dashboard, sessão com auto-refresh, gate de ações por papel
+- [ ] /metrics, versionamento de API (Fase 10)
 
-### Fase 8 — Dashboard ◐
-- [x] Lista com margem/pior lucro/confiança/idade/casas + indicador de tempo real
+### Fase 8 — Dashboard ✅ (núcleo) / ◐ (telas extras)
+- [x] Design system profissional (tokens de paleta validada, lucide-react,
+      primitivas reutilizáveis) — cara de SaaS pronta para produção
+- [x] Lista com KPIs, margem/pior lucro/confiança/idade/casas + tempo real
 - [x] Detalhe com pernas, explicação auditável, revalidações, simulador de banca
+- [x] Login/cadastro, sessão com auto-refresh, gate de ações por papel
 - [x] Estados loading/empty/error + avisos de risco
-- [ ] Login/cadastro, comparador de odds, histórico, configurações, auditoria
+- [ ] Comparador de odds, histórico, configurações, auditoria administrativa
 
 ### Fase 9 — Alertas ⬜
 ### Fase 10 — Hardening ⬜ (observabilidade completa, e2e Playwright, retenção)

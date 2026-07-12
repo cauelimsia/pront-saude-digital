@@ -1,6 +1,6 @@
 # ADR-0012 — Proteção temporária da revisão antes do RBAC
 
-Data: 2026-07-12 · Status: aceita (temporária, será substituída na Fase 7)
+Data: 2026-07-12 · Status: SUPERSEDED por ADR-0013 (autenticação + RBAC)
 
 ## Contexto
 Os endpoints de aprovação/rejeição de matching mutam dados sensíveis (associam
@@ -25,4 +25,6 @@ a Fase 7, o guard é substituído por RBAC (papel ANALYST/ADMIN) e a flag é
 removida.
 
 ## Superseded por
-(a preencher na Fase 7 — autenticação com RBAC.)
+ADR-0013 — autenticação (Argon2id + JWT + refresh rotativo) e RBAC. A flag
+`ENABLE_UNAUTHENTICATED_MATCH_REVIEW` e o `MatchReviewGuard` foram removidos; as
+mutações de revisão exigem papel ANALYST/ADMIN.

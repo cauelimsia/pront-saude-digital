@@ -1,8 +1,8 @@
 /**
  * Cenário E2E de matching multi-provedor (Playwright).
  *
- * Pré-requisitos: stack no ar (worker + API + web) com ENABLE_UNAUTHENTICATED_MATCH_REVIEW=true,
- * banco semeado e ambos os provedores ingeridos. Executar:
+ * Pré-requisitos: stack no ar (worker + API + web), usuário ANALYST/ADMIN
+ * autenticado, banco semeado e ambos os provedores ingeridos. Executar:
  *
  *   OUT_DIR=/caminho node apps/web/e2e/matching.e2e.mjs
  *

@@ -68,6 +68,20 @@ async function main() {
     });
   }
 
+  // Usuário admin de bootstrap — SOMENTE se as credenciais vierem por env
+  // (nunca hardcoded no Git). O hash é gerado pela API na inicialização; aqui
+  // apenas registramos as credenciais pré-hasheadas se fornecidas.
+  const adminEmail = process.env.SEED_ADMIN_EMAIL;
+  const adminHash = process.env.SEED_ADMIN_PASSWORD_HASH;
+  if (adminEmail && adminHash) {
+    await prisma.user.upsert({
+      where: { email: adminEmail.toLowerCase() },
+      update: { role: "ADMIN" },
+      create: { email: adminEmail.toLowerCase(), passwordHash: adminHash, role: "ADMIN" },
+    });
+    console.log(`Seed: usuário admin ${adminEmail} garantido.`);
+  }
+
   console.log(
     "Seed concluído: provedores mock-primary/mock-bravo, casas bet-alpha/bravo/charlie e alias de competição.",
   );

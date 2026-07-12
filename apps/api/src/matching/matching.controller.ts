@@ -7,12 +7,14 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  Req,
   UseGuards,
 } from "@nestjs/common";
-import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiOperation, ApiTags } from "@nestjs/swagger";
+import { MATCH_REVIEW_ROLES } from "@rataria/shared";
 import { ZodValidationPipe } from "../zod.pipe";
 import { MatchingService } from "./matching.service";
-import { MatchReviewGuard } from "./match-review.guard";
+import { JwtAuthGuard, Roles, RolesGuard, type AuthedRequest } from "../auth/auth.guards";
 import {
   listEventMatchesQuerySchema,
   listReviewsQuerySchema,
@@ -39,24 +41,32 @@ export class MatchingController {
     return this.matching.getReview(id);
   }
 
+  // RBAC (Fase 7): apenas ANALYST/ADMIN decidem revisões. O ator é o usuário
+  // autenticado — o cliente não escolhe `decidedBy`.
   @Post("reviews/:id/approve")
-  @UseGuards(MatchReviewGuard)
-  @ApiOperation({ summary: "Aprova a associação (proteção temporária, Fase 4)" })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...MATCH_REVIEW_ROLES)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Aprova a associação (requer ANALYST/ADMIN)" })
   approve(
     @Param("id", ParseUUIDPipe) id: string,
     @Body(new ZodValidationPipe(reviewDecisionBodySchema)) body: ReviewDecisionBody,
+    @Req() req: AuthedRequest,
   ) {
-    return this.matching.approveReview(id, body);
+    return this.matching.approveReview(id, { ...body, decidedBy: req.user!.email });
   }
 
   @Post("reviews/:id/reject")
-  @UseGuards(MatchReviewGuard)
-  @ApiOperation({ summary: "Rejeita a associação (proteção temporária, Fase 4)" })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...MATCH_REVIEW_ROLES)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: "Rejeita a associação (requer ANALYST/ADMIN)" })
   reject(
     @Param("id", ParseUUIDPipe) id: string,
     @Body(new ZodValidationPipe(reviewDecisionBodySchema)) body: ReviewDecisionBody,
+    @Req() req: AuthedRequest,
   ) {
-    return this.matching.rejectReview(id, body);
+    return this.matching.rejectReview(id, { ...body, decidedBy: req.user!.email });
   }
 
   @Get("event-matches")

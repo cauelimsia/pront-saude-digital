@@ -25,15 +25,14 @@ export const envSchema = z.object({
   LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   /**
-   * PROTEÇÃO TEMPORÁRIA (Fase 4): habilita as mutações de revisão de matching
-   * (approve/reject) SEM autenticação. Só deve ser usada em desenvolvimento.
-   * Será substituída por RBAC autenticado na Fase 7 — ver ADR-0012 e o item
-   * REMOVER-ANTES-DA-FASE-7 em docs/IMPLEMENTATION_PLAN.md.
+   * Segredo de assinatura do JWT de acesso. Em produção é OBRIGATÓRIO e deve
+   * ter ao menos 32 chars (validado abaixo). Em dev/test usa um default óbvio.
    */
-  ENABLE_UNAUTHENTICATED_MATCH_REVIEW: z
-    .enum(["true", "false"])
-    .default("false")
-    .transform((v) => v === "true"),
+  JWT_SECRET: z.string().default("dev-only-insecure-jwt-secret-change-me-000"),
+  /** TTL do access token (curto). Ex.: "15m", "900". */
+  JWT_ACCESS_TTL: z.string().default("15m"),
+  /** Validade do refresh token, em dias. */
+  REFRESH_TTL_DAYS: z.coerce.number().int().min(1).default(7),
 });
 
 export type AppEnv = z.infer<typeof envSchema>;
@@ -48,12 +47,13 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
   }
   const env = parsed.data;
 
-  // Falha rápido: revisão de matching sem autenticação NUNCA em produção.
-  if (env.NODE_ENV === "production" && env.ENABLE_UNAUTHENTICATED_MATCH_REVIEW) {
-    throw new Error(
-      "ENABLE_UNAUTHENTICATED_MATCH_REVIEW não pode ser true em produção — " +
-        "as mutações de revisão exigem autenticação (RBAC, Fase 7).",
-    );
+  // Em produção, o JWT_SECRET deve ser forte e explícito (nunca o default dev).
+  if (env.NODE_ENV === "production") {
+    if (env.JWT_SECRET.length < 32 || env.JWT_SECRET.startsWith("dev-only")) {
+      throw new Error(
+        "JWT_SECRET ausente ou fraco em produção — defina um segredo com ≥ 32 caracteres.",
+      );
+    }
   }
   return env;
 }

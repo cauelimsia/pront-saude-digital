@@ -17,6 +17,41 @@ enum ProviderKind {
   REST
 }
 
+enum UserRole {
+  USER
+  ANALYST
+  ADMIN
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(USER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  refreshTokens RefreshToken[]
+
+  @@index([email])
+}
+
+// Refresh token rotativo: só o HASH é persistido; rotação revoga o anterior.
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  // Encadeamento da rotação (detecção de reuso).
+  replacedBy String?  @db.Uuid
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+}
+
 enum EventStatus {
   SCHEDULED
   LIVE

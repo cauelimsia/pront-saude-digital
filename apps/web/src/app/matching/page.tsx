@@ -9,6 +9,7 @@ import {
   type ReviewList,
 } from "@/lib/api";
 import { Badge, Card, EmptyState, ErrorState, SkeletonRows } from "@/components/ui";
+import { useAuth } from "@/components/auth-context";
 import { ReviewCard } from "./review-card";
 
 const TABS = [
@@ -18,6 +19,7 @@ const TABS = [
 ];
 
 export default function MatchingReviewPage() {
+  const { user, isReviewer } = useAuth();
   const [data, setData] = useState<ReviewList | null>(null);
   const [status, setStatus] = useState("PENDING");
   const [error, setError] = useState<string | null>(null);
@@ -124,6 +126,7 @@ export default function MatchingReviewPage() {
               key={review.id}
               review={review}
               busy={busyId === review.id}
+              canDecide={isReviewer}
               onDecide={decide}
             />
           ))}
@@ -131,8 +134,17 @@ export default function MatchingReviewPage() {
       )}
 
       <div className="flex items-center gap-2 text-xs text-ink-muted">
-        <Badge tone="warning">proteção temporária</Badge>
-        As ações de aprovar/rejeitar serão substituídas por autenticação com RBAC (Fase 7).
+        {isReviewer ? (
+          <>
+            <Badge tone="aqua">RBAC ativo</Badge>
+            Você está autenticado como {user?.role} — pode aprovar ou rejeitar associações.
+          </>
+        ) : (
+          <>
+            <Badge tone="neutral">somente leitura</Badge>
+            Apenas Analistas e Admins podem decidir revisões. Seu papel atual é {user?.role}.
+          </>
+        )}
       </div>
     </div>
   );

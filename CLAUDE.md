@@ -14,8 +14,8 @@ Monorepo pnpm workspaces:
 - `packages/database` — Prisma + PostgreSQL. Decimal para odds/dinheiro. Migrações + seed determinístico.
 - `packages/shared` — vocabulário de mercados, máquina de estados, validação de env (Zod).
 - `apps/worker` — BullMQ: ingestão → validação → matching/normalização → snapshots → detecção → revalidação → expiração. Publica eventos no Redis pub/sub.
-- `apps/api` — NestJS: REST + SSE (`/surebets/stream`) + `/matching/*` + Swagger em `/docs`. Validação com Zod (não class-validator).
-- `apps/web` — Next.js App Router + Tailwind. Todo dado vem da API via `src/lib/api.ts`. Páginas: oportunidades e revisão de matching.
+- `apps/api` — NestJS: REST + SSE (`/surebets/stream`) + `/matching/*` + `/auth/*` + `/me` + Swagger em `/docs`. Validação com Zod (não class-validator). Auth: Argon2id + JWT + refresh rotativo + RBAC (ADR-0013).
+- `apps/web` — Next.js App Router + Tailwind + lucide-react. Todo dado vem da API via `src/lib/api.ts`. Páginas: login/cadastro, oportunidades, detalhe, revisão de matching. Sessão com auto-refresh; ações gated por papel.
 
 ## Comandos oficiais
 ```
@@ -41,7 +41,7 @@ pnpm --filter @rataria/web dev      # dashboard (porta 3000)
 - Mercados incompatíveis (linhas/períodos diferentes, suspensos) nunca se comparam.
 - Odds só se combinam entre eventos com associação de matching APROVADA (auto ou manual). Eventos em PENDING_REVIEW não têm odds persistidas; rejeitados não se combinam.
 - Regras eliminatórias do matching prevalecem sobre score textual (ADR-0008). Ordem invertida nunca é silenciosa (ADR-0009).
-- Revisão de matching sem auth é proteção TEMPORÁRIA via `ENABLE_UNAUTHENTICATED_MATCH_REVIEW` (falha em produção) — REMOVER-ANTES-DA-FASE-7 (ADR-0012).
+- Mutação de revisão de matching exige papel ANALYST/ADMIN (RBAC); ator auditado = usuário autenticado (ADR-0013). `JWT_SECRET` obrigatório e forte em produção.
 
 ## Definição de pronto
 Código compila + typecheck + lint + testes relevantes passam + integrado ao

@@ -52,9 +52,11 @@ services:
       API_PORT: 3001
       WEB_ORIGIN: http://localhost:3000
       NODE_ENV: production
-      # Revisão de matching desabilitada por padrão (produção). Para habilitar
-      # localmente, defina NODE_ENV=development e =true (ADR-0012).
-      ENABLE_UNAUTHENTICATED_MATCH_REVIEW: "false"
+      # Segredo do JWT — em produção use um valor forte via variável de ambiente
+      # (NUNCA hardcoded). O compose repassa do ambiente do host.
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET com ao menos 32 caracteres}
+      JWT_ACCESS_TTL: 15m
+      REFRESH_TTL_DAYS: 7
     ports:
       - "3001:3001"
     depends_on:

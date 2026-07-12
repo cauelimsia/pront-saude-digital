@@ -29,6 +29,8 @@ jobs:
     env:
       DATABASE_URL: postgresql://rataria:rataria@localhost:5432/rataria
       REDIS_URL: redis://localhost:6379
+      # Segredo de teste (CI). Em produção vem de secret do ambiente.
+      JWT_SECRET: ci-test-secret-abcdefghijklmnop-0123456789
 
     steps:
       - uses: actions/checkout@v4
