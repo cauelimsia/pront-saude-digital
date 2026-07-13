@@ -1,0 +1,18 @@
+# Proxy reverso com HTTPS automático (Let's Encrypt).
+# Requer: DNS do seu domínio apontando para o IP da VPS e portas 80/443 abertas.
+
+{$DOMAIN} {
+	# API sob /api/* → serviço api (remove o prefixo /api antes de repassar).
+	handle /api/* {
+		uri strip_prefix /api
+		reverse_proxy api:3001
+	}
+
+	# Tudo o mais → dashboard (Next.js).
+	handle {
+		reverse_proxy web:3000
+	}
+
+	encode gzip
+	# SSE (/api/surebets/stream) funciona: o Caddy faz flush por evento.
+}

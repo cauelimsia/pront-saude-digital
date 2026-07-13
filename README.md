@@ -45,6 +45,12 @@ flowchart LR
 - Node.js ≥ 20, pnpm ≥ 9
 - Docker + Docker Compose (ou PostgreSQL 16 e Redis 7 locais)
 
+## Deploy em produção (VPS)
+
+Para publicar o sistema completo (dashboard + API + worker + PostgreSQL + Redis)
+numa VPS com HTTPS automático, siga **`docs/DEPLOY.md`** — usa Docker Compose +
+Caddy e só precisa de um domínio apontando para a VPS.
+
 ## Execução com Docker (recomendada)
 
 ```bash

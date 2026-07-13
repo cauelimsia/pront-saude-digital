@@ -1,0 +1,83 @@
+# Overlay de PRODUÇÃO — use junto do docker-compose.yml da raiz:
+#   docker compose -f docker-compose.yml -f infra/deploy/docker-compose.prod.yml up -d --build
+#
+# Adiciona um proxy reverso (Caddy) com HTTPS automático (Let's Encrypt),
+# fecha as portas do banco/redis para a internet e injeta as variáveis de
+# produção a partir do arquivo .env (ver .env.production.example).
+
+services:
+  # Banco e Redis NÃO expõem portas públicas em produção — só a rede interna.
+  postgres:
+    ports: []
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rataria}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-rataria}
+
+  redis:
+    ports: []
+
+  migrate:
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-rataria}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-rataria}
+      # Admin inicial (opcional): gere o hash com o script de deploy.
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-}
+      SEED_ADMIN_PASSWORD_HASH: ${SEED_ADMIN_PASSWORD_HASH:-}
+
+  api:
+    ports: [] # acessível só via Caddy (rede interna)
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-rataria}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-rataria}
+      REDIS_URL: redis://redis:6379
+      API_PORT: 3001
+      NODE_ENV: production
+      WEB_ORIGIN: https://${DOMAIN:?defina DOMAIN}
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET com >= 32 caracteres}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      REFRESH_TTL_DAYS: ${REFRESH_TTL_DAYS:-7}
+      # Provedor real (opcional) — só ativa se a chave estiver definida.
+      REST_PROVIDER_API_KEY: ${REST_PROVIDER_API_KEY:-}
+      REST_PROVIDER_ID: ${REST_PROVIDER_ID:-api-football}
+      REST_PROVIDER_BASE_URL: ${REST_PROVIDER_BASE_URL:-https://v3.football.api-sports.io}
+      REST_PROVIDER_AUTH_NAME: ${REST_PROVIDER_AUTH_NAME:-x-apisports-key}
+
+  worker:
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-rataria}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-rataria}
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+      INGESTION_INTERVAL_MS: ${INGESTION_INTERVAL_MS:-15000}
+      OPPORTUNITY_TTL_MS: ${OPPORTUNITY_TTL_MS:-120000}
+      REST_PROVIDER_API_KEY: ${REST_PROVIDER_API_KEY:-}
+      REST_PROVIDER_ID: ${REST_PROVIDER_ID:-api-football}
+      REST_PROVIDER_BASE_URL: ${REST_PROVIDER_BASE_URL:-https://v3.football.api-sports.io}
+      REST_PROVIDER_AUTH_NAME: ${REST_PROVIDER_AUTH_NAME:-x-apisports-key}
+
+  web:
+    ports: [] # acessível só via Caddy
+    build:
+      args:
+        # A URL pública da API (o navegador chama por aqui, via Caddy → /api).
+        NEXT_PUBLIC_API_URL: https://${DOMAIN}/api
+
+  # Proxy reverso com HTTPS automático (Let's Encrypt).
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./infra/deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - web
+      - api
+    networks: [internal]
+
+volumes:
+  caddy-data:
+  caddy-config:
