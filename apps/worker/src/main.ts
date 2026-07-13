@@ -1,7 +1,14 @@
 import { Queue, Worker } from "bullmq";
 import Redis from "ioredis";
 import { loadEnv } from "@rataria/shared";
-import { MockOddsProvider, MockOddsProviderBravo, ProviderRegistry } from "@rataria/provider-sdk";
+import {
+  createApiFootballMapper,
+  defaultHttpOptions,
+  MockOddsProvider,
+  MockOddsProviderBravo,
+  ProviderRegistry,
+  RestOddsProvider,
+} from "@rataria/provider-sdk";
 import { disconnectPrisma, getPrisma } from "@rataria/database";
 import { logger } from "./logger";
 import { runIngestion } from "./ingestion";
@@ -28,6 +35,38 @@ async function main() {
   const registry = new ProviderRegistry();
   registry.register(new MockOddsProvider({ variability: env.MOCK_VARIABILITY }));
   registry.register(new MockOddsProviderBravo());
+
+  // Provedor REST real (API-Football) — só ativa se a chave estiver no ambiente.
+  // A chave nunca é hardcoded; vem de REST_PROVIDER_API_KEY.
+  if (env.REST_PROVIDER_API_KEY) {
+    // Garante a linha do provedor no banco (para health logs / batches).
+    await getPrisma().provider.upsert({
+      where: { key: env.REST_PROVIDER_ID },
+      update: { name: env.REST_PROVIDER_NAME, enabled: true },
+      create: {
+        key: env.REST_PROVIDER_ID,
+        name: env.REST_PROVIDER_NAME,
+        kind: "REST",
+        enabled: true,
+      },
+    });
+    registry.register(
+      new RestOddsProvider({
+        providerId: env.REST_PROVIDER_ID,
+        baseUrl: env.REST_PROVIDER_BASE_URL,
+        auth: { kind: "header", name: env.REST_PROVIDER_AUTH_NAME, apiKey: env.REST_PROVIDER_API_KEY },
+        mapper: createApiFootballMapper({
+          date: env.REST_PROVIDER_DATE,
+          maxOddsPages: env.REST_PROVIDER_MAX_PAGES,
+        }),
+        http: defaultHttpOptions(),
+      }),
+    );
+    logger.info(
+      { providerId: env.REST_PROVIDER_ID, baseUrl: env.REST_PROVIDER_BASE_URL },
+      "provedor REST real registrado",
+    );
+  }
 
   const ingestionQueue = new Queue(QUEUE_INGESTION, { connection: bullConnection });
   const detectionQueue = new Queue(QUEUE_DETECTION, { connection: bullConnection });

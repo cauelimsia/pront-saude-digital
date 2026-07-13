@@ -33,6 +33,17 @@ export const envSchema = z.object({
   JWT_ACCESS_TTL: z.string().default("15m"),
   /** Validade do refresh token, em dias. */
   REFRESH_TTL_DAYS: z.coerce.number().int().min(1).default(7),
+
+  // ── Provedor REST real (opcional) — ex.: API-Football ──────────────────
+  /** Chave da API do provedor. SÓ via env; ausente = provedor desativado. */
+  REST_PROVIDER_API_KEY: z.string().min(1).optional(),
+  REST_PROVIDER_ID: z.string().default("api-football"),
+  REST_PROVIDER_NAME: z.string().default("API-Football"),
+  REST_PROVIDER_BASE_URL: z.string().url().default("https://v3.football.api-sports.io"),
+  REST_PROVIDER_AUTH_NAME: z.string().default("x-apisports-key"),
+  /** Data (YYYY-MM-DD) a consultar; vazio = hoje (UTC). */
+  REST_PROVIDER_DATE: z.string().optional(),
+  REST_PROVIDER_MAX_PAGES: z.coerce.number().int().min(1).max(50).default(3),
 });
 
 export type AppEnv = z.infer<typeof envSchema>;

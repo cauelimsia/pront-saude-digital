@@ -16,3 +16,7 @@ export {
   type RestAuthConfig,
   type RestProviderMapper,
 } from "./rest-provider";
+export {
+  createApiFootballMapper,
+  type ApiFootballMapperOptions,
+} from "./api-football-mapper";

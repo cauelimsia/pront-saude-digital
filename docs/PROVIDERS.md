@@ -84,6 +84,38 @@ ambiente validadas.
 5. **Registre o provedor no banco** (seed ou migração) com a mesma `key`, para
    o pipeline associar `ProviderHealthLog`/`IngestionBatch`.
 
+## Provedor pronto: API-Football (api-football.com)
+
+Já existe um mapper pronto (`createApiFootballMapper`) para o feed da
+**API-Football v3**, que entrega odds de vários bookmakers por jogo — ideal para
+surebet. Para ativar, basta configurar a chave no `.env`:
+
+```bash
+REST_PROVIDER_API_KEY=SUA_CHAVE        # só no .env; nunca no Git
+REST_PROVIDER_ID=api-football
+REST_PROVIDER_BASE_URL=https://v3.football.api-sports.io
+REST_PROVIDER_AUTH_NAME=x-apisports-key
+REST_PROVIDER_MAX_PAGES=3               # ~10 jogos por página
+# REST_PROVIDER_DATE=2026-07-13         # vazio = hoje (UTC)
+```
+
+Com a chave presente, o worker registra o provedor automaticamente (senão, roda
+só com os mocks). Mercados mapeados: **Match Winner → 1X2**, **Goals Over/Under
+→ Totais**, **Both Teams Score → BTTS**.
+
+> Se você usa a API-Football via **RapidAPI**, mude a base para
+> `https://api-football-v1.p.rapidapi.com/v3` e `REST_PROVIDER_AUTH_NAME` para
+> `x-rapidapi-key` (e adicione o header `x-rapidapi-host` no mapper, se preciso).
+
+**Smoke test recomendado** (confirmar contra uma resposta real, com sua chave):
+```bash
+curl -s -H "x-apisports-key: $REST_PROVIDER_API_KEY" \
+  "https://v3.football.api-sports.io/fixtures?date=$(date -u +%F)" | head -c 500
+```
+Se a estrutura bater com a esperada (`response[].teams.home.name`, etc.), o
+mapper funciona direto. Observação: no plano gratuito a cota e a disponibilidade
+de odds são limitadas — para operar de verdade normalmente é preciso plano pago.
+
 ## Resiliência (já pronta, `defaultHttpOptions`)
 
 | Recurso | Padrão | Ajuste |
