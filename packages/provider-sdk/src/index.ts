@@ -7,3 +7,4 @@ export {
   type MockOddsProviderBravoOptions,
 } from "./mock/bravo-provider";
 export { BRAVO_PROVIDER_ID } from "./mock/bravo-fixtures";
+export * from "./rest";
