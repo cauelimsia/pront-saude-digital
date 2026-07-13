@@ -68,6 +68,35 @@ docker compose -f docker-compose.yml -f infra/deploy/docker-compose.prod.yml up 
 Ver `docs/PROVIDERS.md` para detalhes da API-Football. **Sem** a chave, o sistema
 roda com os provedores mockados (dados de demonstração).
 
+## Usar Supabase como banco (em vez do Postgres local)
+
+O Supabase é PostgreSQL gerenciado — nada muda no código, só a conexão.
+
+1. No painel do Supabase: **Project → Connect** e copie a string do
+   **Session pooler** (porta **5432**, IPv4 — compatível com Prisma e com hosts
+   sem IPv6). Evite o *Transaction pooler* (6543): ele não roda migrações bem.
+   Formato: `postgresql://postgres.<ref>:<SENHA>@aws-0-<region>.pooler.supabase.com:5432/postgres`
+
+2. No `.env` da VPS, defina:
+   ```bash
+   DATABASE_URL=postgresql://postgres.<ref>:<SENHA>@aws-0-<region>.pooler.supabase.com:5432/postgres
+   ```
+   (A senha é a do banco do Supabase — fica só no `.env`, nunca no Git.)
+
+3. Suba incluindo o overlay do Supabase (desliga o Postgres local):
+   ```bash
+   docker compose -f docker-compose.yml \
+     -f infra/deploy/docker-compose.prod.yml \
+     -f infra/deploy/docker-compose.supabase.yml up -d --build
+   ```
+
+As migrações do Prisma rodam automaticamente contra o Supabase no serviço
+`migrate`. Você acompanha as tabelas no **Table Editor** do Supabase.
+
+> Redis (filas + tempo real) continua no container local — o Supabase não
+> substitui o Redis. Se quiser Redis gerenciado, use Upstash e aponte
+> `REDIS_URL` para ele.
+
 ## Atualizar para uma nova versão
 ```bash
 git pull
