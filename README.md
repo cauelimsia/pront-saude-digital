@@ -4,12 +4,12 @@
 
 **SaaS multi-tenant de saúde digital — prontuário eletrônico, agenda e gestão de clínicas**
 
-<a href="https://nextjs.org"><img height="34" src="https://img.shields.io/badge/Next.js_14-000000?style=flat&logo=nextdotjs&logoColor=white" alt="Next.js"></a>
-<a href="#"><img height="34" src="https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript"></a>
-<a href="https://supabase.com"><img height="34" src="https://img.shields.io/badge/Supabase-3FCF8E?style=flat&logo=supabase&logoColor=white" alt="Supabase"></a>
-<a href="#"><img height="34" src="https://img.shields.io/badge/PostgreSQL-4169E1?style=flat&logo=postgresql&logoColor=white" alt="PostgreSQL"></a>
-<a href="#"><img height="34" src="https://img.shields.io/badge/Tailwind-06B6D4?style=flat&logo=tailwindcss&logoColor=white" alt="Tailwind CSS"></a>
-<a href="https://pront-saude-digital.netlify.app"><img height="34" src="https://img.shields.io/badge/Netlify-00C7B7?style=flat&logo=netlify&logoColor=white" alt="Netlify"></a>
+<a href="https://nextjs.org"><img width="144" src="https://img.shields.io/badge/Next.js_14-000000?style=flat&logo=nextdotjs&logoColor=white" alt="Next.js"></a>
+<a href="#"><img width="148" src="https://img.shields.io/badge/TypeScript-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript"></a>
+<a href="https://supabase.com"><img width="138" src="https://img.shields.io/badge/Supabase-3FCF8E?style=flat&logo=supabase&logoColor=white" alt="Supabase"></a>
+<a href="#"><img width="155" src="https://img.shields.io/badge/PostgreSQL-4169E1?style=flat&logo=postgresql&logoColor=white" alt="PostgreSQL"></a>
+<a href="#"><img width="124" src="https://img.shields.io/badge/Tailwind-06B6D4?style=flat&logo=tailwindcss&logoColor=white" alt="Tailwind CSS"></a>
+<a href="https://pront-saude-digital.netlify.app"><img width="107" src="https://img.shields.io/badge/Netlify-00C7B7?style=flat&logo=netlify&logoColor=white" alt="Netlify"></a>
 
 **[▶ Abrir o sistema](https://pront-saude-digital.netlify.app)** · [Multi-tenancy](#-multi-tenancy-com-row-level-security) · [Módulos](#-módulos) · [Rodar local](#-rodar-local)
 
