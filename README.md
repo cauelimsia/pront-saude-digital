@@ -1,83 +1,108 @@
-# Pront. — Plataforma de Saúde Digital
+<div align="center">
 
-Recriação da plataforma **pront.app**: SaaS multi-tenant de saúde digital
-(telemedicina, teleodontologia, prontuário eletrônico e gestão de clínicas).
-Cada clínica é um *tenant* isolado — modelo pensado para revenda da plataforma
-para várias clínicas e profissionais.
+# 🩺 Pront.
 
-🌐 **No ar:** https://pront-saude-digital.netlify.app
-🔐 **Conta demo:** `teste-clinica@pront.app` / `Senha12345`
+**SaaS multi-tenant de saúde digital — prontuário eletrônico, agenda e gestão de clínicas**
 
-> Backend real ativo: autenticação e dados persistidos no **Supabase** (PostgreSQL),
-> isolados por clínica via Row Level Security.
+[![Next.js](https://img.shields.io/badge/Next.js_14-000000?style=for-the-badge&logo=nextdotjs&logoColor=white)](https://nextjs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](#)
+[![Supabase](https://img.shields.io/badge/Supabase-3FCF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](#)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)](#)
+[![Netlify](https://img.shields.io/badge/Netlify-00C7B7?style=for-the-badge&logo=netlify&logoColor=white)](https://pront-saude-digital.netlify.app)
 
-## Stack
+**[▶ Abrir o sistema](https://pront-saude-digital.netlify.app)** · [Multi-tenancy](#-multi-tenancy-com-row-level-security) · [Módulos](#-módulos) · [Rodar local](#-rodar-local)
 
-- **Next.js 14** (App Router) + **TypeScript**
-- **Tailwind CSS** (design system próprio em `tailwind.config.ts`)
-- **Supabase** (Postgres + Auth + RLS) para produção — schema em `supabase/migrations`
-- Deploy recomendado: **Vercel**
+`Backend real em produção` · `Isolamento por clínica via RLS` · `Auth, dados e schema versionados`
 
-## O que já está pronto
+</div>
+
+> [!TIP]
+> **Conta demo:** `teste-clinica@pront.app` · senha `Senha12345`
+
+---
+
+## 🎯 O que é
+
+Plataforma de saúde digital para clínicas médicas e odontológicas: telemedicina,
+teleodontologia, prontuário eletrônico e gestão do dia a dia.
+
+Cada clínica é um **tenant isolado** — o modelo foi desenhado para revenda da mesma
+plataforma para várias clínicas e profissionais, sem instância separada por cliente.
+
+## 🔐 Multi-tenancy com Row Level Security
+
+O isolamento entre clínicas não está na aplicação — está **no banco**.
+
+Cada tabela carrega o `clinica_id` e uma policy de Row Level Security amarra toda leitura e
+escrita ao tenant da sessão autenticada. Uma consulta que "esqueça" o filtro não vaza dado de
+outra clínica: o Postgres recusa antes de a aplicação ver a linha.
+
+No cadastro, um **gatilho** cria automaticamente a clínica (tenant) e o perfil do usuário,
+então o onboarding não depende de passo manual.
+
+Todo o schema — tabelas, policies e gatilhos — está versionado em `supabase/migrations`.
+
+## 🧩 Módulos
 
 | Área | Estado |
-|------|--------|
-| Landing page institucional (hero, ecossistema, segmentos, "por que Pront", CTA, footer) | ✅ |
-| Login e cadastro (com escolha de perfil) | ✅ (modo demo) |
+|---|---|
+| Landing institucional (hero, ecossistema, segmentos, CTA) | ✅ |
+| Autenticação real (Supabase Auth) + criação de tenant | ✅ |
 | Painel com sidebar e topbar | ✅ |
-| Visão geral (indicadores, agenda do dia, pacientes recentes) | ✅ |
-| Pacientes (lista, busca, cadastro, ficha completa) | ✅ |
-| Prontuário eletrônico (evoluções por paciente) | ✅ |
-| Agenda (agendamentos, confirmação, cancelamento, teleconsulta) | ✅ |
-| Teleconsulta (tela de atendimento) | ✅ |
+| Visão geral — indicadores, agenda do dia, pacientes recentes | ✅ |
+| Pacientes — lista, busca, cadastro, ficha completa | ✅ |
+| Prontuário eletrônico — evoluções por paciente | ✅ |
+| Agenda — agendamento, confirmação, cancelamento, teleconsulta | ✅ |
+| Teleconsulta — tela de atendimento | ✅ |
 | Configurações | ✅ |
-| Schema SQL multi-tenant com Row Level Security | ✅ |
+| Schema multi-tenant com RLS | ✅ |
 
-## Rodando localmente
+## 🚀 Rodar local
 
 ```bash
 npm install
+cp .env.example .env.local     # preencher URL e anon key do Supabase
 npm run dev
 # http://localhost:3000
 ```
-
-Faça login com qualquer e-mail/senha (modo demonstração).
-
-## Backend (produção)
-
-O sistema está **conectado a um backend real** no Supabase:
-
-- **Auth** real (login, cadastro, logout) via Supabase Auth
-- No cadastro, um gatilho cria automaticamente a **clínica (tenant)** + o **perfil**
-- **Persistência** de pacientes, agenda e prontuários no PostgreSQL
-- **Isolamento por clínica** via Row Level Security (cada conta só vê os próprios dados)
-
-Variáveis necessárias (já configuradas na Netlify; para rodar local copie
-`.env.example` para `.env.local`):
 
 ```
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 ```
 
-> **Observação de segurança:** para agilizar a revenda, novos cadastros são
-> auto-confirmados (login imediato). Endurecimento recomendado para produção
-> madura: exigir verificação real de e-mail e aprovação da clínica.
->
-> **Dados dos clientes antigos:** nenhum dado do pront.app original é acessível —
-> ele vive no banco do sistema antigo. Esta plataforma começa limpa.
+## 🗺️ Roadmap
 
-## Roadmap (próximas etapas)
-
-- [ ] Autenticação real (Supabase Auth) + onboarding de clínica (tenant)
-- [ ] Persistência real dos módulos no Postgres
-- [ ] Integração WhatsApp (confirmação de consulta, atendimento)
-- [ ] ProntAI: triagem e resumo clínico com IA
+- [ ] Integração WhatsApp — confirmação de consulta e atendimento
+- [ ] ProntAI — triagem e resumo clínico com IA
 - [ ] Receita digital com assinatura válida
 - [ ] Vídeo na teleconsulta (WebRTC)
-- [ ] Cobrança/planos por tenant (revenda)
+- [ ] Cobrança e planos por tenant (revenda)
+
+## ⚠️ Notas de segurança
+
+Para agilizar a revenda, novos cadastros são **auto-confirmados** (login imediato).
+Endurecimento recomendado antes de operação madura: verificação real de e-mail e
+aprovação da clínica.
+
+Nenhum dado de clientes do pront.app original é acessível aqui — aquele banco é do sistema
+antigo. Esta plataforma começa limpa.
+
+## 🧱 Stack
+
+| Camada | Escolha |
+|---|---|
+| Front / SSR | Next.js 14 (App Router), TypeScript |
+| Estilo | Tailwind CSS, design system próprio em `tailwind.config.ts` |
+| Banco / Auth | Supabase — Postgres, Auth e Row Level Security |
+| Deploy | Netlify (Vercel também suportado) |
 
 ---
 
-> Projeto recriado do zero. Visual e funcionalidades inspirados no pront.app;
-> não inclui código ou dados proprietários do sistema original.
+<div align="center">
+
+Projeto recriado do zero. Visual e funcionalidades inspirados no pront.app;
+não inclui código nem dados proprietários do sistema original.
+
+</div>
